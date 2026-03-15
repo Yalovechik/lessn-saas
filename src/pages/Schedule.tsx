@@ -58,6 +58,7 @@ function LessonCard({
     onComplete,
     onCancel,
     onRemove,
+    onEdit,
 }: {
     lesson: GridLesson;
     isDragging?: boolean;
@@ -65,6 +66,7 @@ function LessonCard({
     onComplete?: () => void;
     onCancel?: () => void;
     onRemove?: () => void;
+    onEdit?: () => void;
 }) {
     const { attributes, listeners, setNodeRef, transform } = useDraggable({
         id: lesson.id,
@@ -111,6 +113,12 @@ function LessonCard({
                 }}
                 {...listeners}
                 {...attributes}
+                onClick={(e) => {
+                    if (!isDragging && onEdit) {
+                        e.stopPropagation();
+                        onEdit();
+                    }
+                }}
             >
                 <p
                     style={{
@@ -152,10 +160,8 @@ function LessonCard({
                             marginTop: 6,
                             paddingTop: 6,
                             borderTop: `1px solid ${lesson.status === "cancelled" ? "hsl(var(--coral))" : "rgba(255,255,255,0.25)"}`,
-                            overflow: "hidden",
-                            display: "-webkit-box",
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: "vertical",
+                            lineHeight: 1.4,
+                            wordBreak: "break-word",
                         }}
                     >
                         {lesson.notes}
@@ -284,6 +290,7 @@ function ScheduleCell({
     onComplete,
     onCancel,
     onRemove,
+    onEdit,
 }: {
     id: string;
     lesson?: GridLesson;
@@ -301,6 +308,7 @@ function ScheduleCell({
     onComplete?: () => void;
     onCancel?: () => void;
     onRemove?: () => void;
+    onEdit?: () => void;
 }) {
     const { setNodeRef, isOver } = useDroppable({ id });
 
@@ -333,7 +341,7 @@ function ScheduleCell({
             {lesson ? (
                 <div
                     style={{
-                        height: lessonHeight ?? "100%",
+                        minHeight: lessonHeight,
                         display: "flex",
                         flexDirection: "column",
                     }}
@@ -344,6 +352,7 @@ function ScheduleCell({
                         onComplete={onComplete}
                         onCancel={onCancel}
                         onRemove={onRemove}
+                        onEdit={onEdit}
                     />
                 </div>
             ) : (
@@ -427,6 +436,7 @@ export default function Schedule() {
 
     // Add/edit modal state
     const [modal, setModal] = useState(false);
+    const [editingLessonId, setEditingLessonId] = useState<string | null>(null);
     const [selectedCell, setSelectedCell] = useState<{
         day: number;
         timeSlot: number;
@@ -620,6 +630,7 @@ export default function Schedule() {
 
     const handleCellClick = (day: number, timeSlot: number) => {
         const date = weekDates[day].toISOString().split("T")[0];
+        setEditingLessonId(null);
         setSelectedCell({ day, timeSlot });
         setFormDate(date);
         setFormStudentId(students[0]?.id || "");
@@ -631,8 +642,54 @@ export default function Schedule() {
         setModal(true);
     };
 
+    const handleLessonClick = (lessonId: string) => {
+        const raw = lessons.find((l) => l.id === lessonId);
+        if (!raw) return;
+        setEditingLessonId(lessonId);
+        setFormDate(raw.date);
+        setFormStudentId(raw.student_id || raw.group_id || "");
+        setFormNotes(raw.notes || "");
+        setFormDuration(raw.duration || 60);
+        setShowRecurring(false);
+        setRecurringDays([]);
+        setRecurringEndDate("");
+        // derive selectedCell for time display
+        const hours = raw.time ? parseInt(raw.time.split(":")[0]) : 8;
+        const timeSlot = Math.max(
+            0,
+            SLOT_HOURS.indexOf(hours) === -1 ? 0 : SLOT_HOURS.indexOf(hours),
+        );
+        const monday = getWeekMonday();
+        const weekDateStrs = Array.from({ length: 7 }, (_, i) => {
+            const d = new Date(monday);
+            d.setDate(monday.getDate() + i);
+            return d.toISOString().split("T")[0];
+        });
+        const day = weekDateStrs.indexOf(raw.date);
+        setSelectedCell(day >= 0 ? { day, timeSlot } : null);
+        setModal(true);
+    };
+
     const handleAddLesson = async () => {
-        if (!selectedCell || !formStudentId || !teacher) return;
+        if (!teacher) return;
+
+        if (editingLessonId) {
+            // Edit mode
+            updateLesson.mutate({
+                id: editingLessonId,
+                date: formDate,
+                time: selectedCell
+                    ? `${String(SLOT_HOURS[selectedCell.timeSlot] ?? 8).padStart(2, "0")}:00`
+                    : undefined,
+                duration: formDuration,
+                notes: formNotes,
+            });
+            setModal(false);
+            setEditingLessonId(null);
+            return;
+        }
+
+        if (!selectedCell || !formStudentId) return;
         const time = `${String(SLOT_HOURS[selectedCell.timeSlot] ?? 8).padStart(2, "0")}:00`;
 
         if (showRecurring && recurringDays.length > 0 && recurringEndDate) {
@@ -1563,7 +1620,7 @@ export default function Schedule() {
                                         display: "grid",
                                         gridTemplateColumns:
                                             "120px repeat(7, 1fr)",
-                                        gridTemplateRows: `repeat(${totalRows}, ${ROW_H}px)`,
+                                        gridTemplateRows: `repeat(${totalRows}, minmax(${ROW_H}px, auto))`,
                                         minWidth: 700,
                                     }}
                                 >
@@ -1723,6 +1780,14 @@ export default function Schedule() {
                                                             lesson
                                                                 ? () =>
                                                                       setConfirmDeleteId(
+                                                                          lesson.id,
+                                                                      )
+                                                                : undefined
+                                                        }
+                                                        onEdit={
+                                                            lesson
+                                                                ? () =>
+                                                                      handleLessonClick(
                                                                           lesson.id,
                                                                       )
                                                                 : undefined
@@ -2192,12 +2257,18 @@ export default function Schedule() {
             {/* ── Add Lesson Modal ── */}
             <Modal
                 open={modal}
-                onClose={() => setModal(false)}
-                title="Нове заняття"
+                onClose={() => {
+                    setModal(false);
+                    setEditingLessonId(null);
+                }}
+                title={editingLessonId ? "Редагувати заняття" : "Нове заняття"}
                 footer={
                     <>
                         <button
-                            onClick={() => setModal(false)}
+                            onClick={() => {
+                                setModal(false);
+                                setEditingLessonId(null);
+                            }}
                             className="px-4 py-2 rounded-md bg-secondary text-secondary-foreground text-sm font-medium"
                         >
                             Скасувати
@@ -2206,7 +2277,7 @@ export default function Schedule() {
                             onClick={handleAddLesson}
                             className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-semibold hover:bg-mint-dark transition-all"
                         >
-                            Додати
+                            {editingLessonId ? "Зберегти" : "Додати"}
                         </button>
                     </>
                 }
@@ -2237,6 +2308,7 @@ export default function Schedule() {
                             value={formStudentId}
                             onChange={(e) => setFormStudentId(e.target.value)}
                             className="w-full px-3 py-2.5 rounded-md border-[1.5px] border-border bg-card text-sm outline-none"
+                            disabled={!!editingLessonId}
                         >
                             {students.map((s) => (
                                 <option key={s.id} value={s.id}>
@@ -2276,28 +2348,30 @@ export default function Schedule() {
                             className="w-full px-3 py-2.5 rounded-md border-[1.5px] border-border bg-card text-sm outline-none focus:border-foreground"
                         />
                     </div>
-                    <div>
-                        <label
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 8,
-                                cursor: "pointer",
-                            }}
-                        >
-                            <input
-                                type="checkbox"
-                                checked={showRecurring}
-                                onChange={(e) =>
-                                    setShowRecurring(e.target.checked)
-                                }
-                            />
-                            <span className="text-[13px] font-semibold text-muted-foreground">
-                                Повторюваний урок
-                            </span>
-                        </label>
-                    </div>
-                    {showRecurring && (
+                    {!editingLessonId && (
+                        <div>
+                            <label
+                                style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 8,
+                                    cursor: "pointer",
+                                }}
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={showRecurring}
+                                    onChange={(e) =>
+                                        setShowRecurring(e.target.checked)
+                                    }
+                                />
+                                <span className="text-[13px] font-semibold text-muted-foreground">
+                                    Повторюваний урок
+                                </span>
+                            </label>
+                        </div>
+                    )}
+                    {!editingLessonId && showRecurring && (
                         <div className="space-y-3 p-3 bg-mint-50 rounded-md">
                             <div>
                                 <p className="text-[12px] font-semibold text-muted-foreground mb-2">
