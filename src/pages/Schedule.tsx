@@ -433,6 +433,7 @@ export default function Schedule() {
     const [customStartDate, setCustomStartDate] = useState("");
     const [customEndDate, setCustomEndDate] = useState("");
     const [showStudentDropdown, setShowStudentDropdown] = useState(false);
+    const [showDateDropdown, setShowDateDropdown] = useState(false);
 
     // Add/edit modal state
     const [modal, setModal] = useState(false);
@@ -451,6 +452,9 @@ export default function Schedule() {
 
     // Confirm delete
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+    const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(
+        null,
+    );
 
     // ── Week helpers ──────────────────────────────────────────────────────────
 
@@ -1252,11 +1256,8 @@ export default function Schedule() {
                         <div
                             style={{
                                 display: "flex",
-                                background: "hsl(var(--card))",
-                                borderRadius: 8,
-                                border: "1px solid hsl(var(--border))",
-                                padding: 2,
-                                gap: 2,
+                                gap: 6,
+                                flexWrap: "wrap",
                             }}
                         >
                             {(
@@ -1272,10 +1273,10 @@ export default function Schedule() {
                                     key={f}
                                     onClick={() => setListFilter(f)}
                                     style={{
-                                        padding: "5px 10px",
-                                        borderRadius: 6,
-                                        border: "none",
-                                        fontSize: 12,
+                                        padding: "6px 14px",
+                                        borderRadius: 20,
+                                        border: `1.5px solid ${listFilter === f ? "hsl(var(--foreground))" : "hsl(var(--border))"}`,
+                                        fontSize: 13,
                                         fontWeight: 600,
                                         cursor: "pointer",
                                         transition: "all 0.15s",
@@ -1283,7 +1284,7 @@ export default function Schedule() {
                                         background:
                                             listFilter === f
                                                 ? "hsl(var(--foreground))"
-                                                : "transparent",
+                                                : "hsl(var(--card))",
                                         color:
                                             listFilter === f
                                                 ? "hsl(var(--card))"
@@ -1296,64 +1297,180 @@ export default function Schedule() {
                         </div>
 
                         {/* Date range filter */}
-                        <div
-                            style={{
-                                display: "flex",
-                                background: "hsl(var(--card))",
-                                borderRadius: 8,
-                                border: "1px solid hsl(var(--border))",
-                                padding: 2,
-                                gap: 2,
-                            }}
-                        >
-                            {(
-                                [
-                                    "all",
-                                    "today",
-                                    "week",
-                                    "month",
-                                    "custom",
-                                ] as const
-                            ).map((r) => (
-                                <button
-                                    key={r}
-                                    onClick={() => {
-                                        setDateRangeFilter(r);
-                                        if (r !== "custom") {
-                                            setCustomStartDate("");
-                                            setCustomEndDate("");
-                                        }
-                                    }}
+                        <div style={{ position: "relative" }}>
+                            <button
+                                onClick={() => setShowDateDropdown((v) => !v)}
+                                style={{
+                                    padding: "6px 14px",
+                                    borderRadius: 20,
+                                    border: `1.5px solid ${dateRangeFilter !== "all" ? "hsl(var(--foreground))" : "hsl(var(--border))"}`,
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    cursor: "pointer",
+                                    background:
+                                        dateRangeFilter !== "all"
+                                            ? "hsl(var(--foreground))"
+                                            : "hsl(var(--card))",
+                                    color:
+                                        dateRangeFilter !== "all"
+                                            ? "hsl(var(--card))"
+                                            : "hsl(var(--muted-foreground))",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 6,
+                                    transition: "all 0.15s",
+                                    whiteSpace: "nowrap",
+                                }}
+                            >
+                                <svg
+                                    width="13"
+                                    height="13"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                >
+                                    <rect
+                                        x="3"
+                                        y="4"
+                                        width="18"
+                                        height="18"
+                                        rx="2"
+                                        ry="2"
+                                    />
+                                    <line x1="16" y1="2" x2="16" y2="6" />
+                                    <line x1="8" y1="2" x2="8" y2="6" />
+                                    <line x1="3" y1="10" x2="21" y2="10" />
+                                </svg>
+                                {dateRangeFilter === "all"
+                                    ? "Весь час"
+                                    : dateRangeFilter === "today"
+                                      ? "Сьогодні"
+                                      : dateRangeFilter === "week"
+                                        ? "Цей тиждень"
+                                        : dateRangeFilter === "month"
+                                          ? "Цей місяць"
+                                          : "Вказати період"}
+                                <svg
+                                    width="11"
+                                    height="11"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
                                     style={{
-                                        padding: "5px 10px",
-                                        borderRadius: 6,
-                                        border: "none",
-                                        fontSize: 12,
-                                        fontWeight: 600,
-                                        cursor: "pointer",
-                                        transition: "all 0.15s",
-                                        whiteSpace: "nowrap",
-                                        background:
-                                            dateRangeFilter === r
-                                                ? "hsl(var(--mint-dark))"
-                                                : "transparent",
-                                        color:
-                                            dateRangeFilter === r
-                                                ? "#fff"
-                                                : "hsl(var(--muted-foreground))",
+                                        transform: showDateDropdown
+                                            ? "rotate(180deg)"
+                                            : "none",
+                                        transition: "transform 0.2s",
                                     }}
                                 >
-                                    {r === "all"
-                                        ? "Весь час"
-                                        : r === "today"
-                                          ? "Сьогодні"
-                                          : r === "week"
-                                            ? "Цей тиждень"
-                                            : r === "month"
-                                              ? "Цей місяць"
-                                              : "Період"}
-                                </button>
-                            ))}
+                                    <polyline points="6 9 12 15 18 9" />
+                                </svg>
+                            </button>
+                            {showDateDropdown && (
+                                <>
+                                    <div
+                                        style={{
+                                            position: "fixed",
+                                            inset: 0,
+                                            zIndex: 1998,
+                                        }}
+                                        onClick={() =>
+                                            setShowDateDropdown(false)
+                                        }
+                                    />
+                                    <div
+                                        style={{
+                                            position: "absolute",
+                                            top: "calc(100% + 6px)",
+                                            left: 0,
+                                            background: "hsl(var(--card))",
+                                            border: "1px solid hsl(var(--border))",
+                                            borderRadius: 12,
+                                            boxShadow:
+                                                "0 8px 24px rgba(0,0,0,0.12)",
+                                            zIndex: 1999,
+                                            minWidth: 180,
+                                            overflow: "hidden",
+                                        }}
+                                    >
+                                        {(
+                                            [
+                                                "all",
+                                                "today",
+                                                "week",
+                                                "month",
+                                                "custom",
+                                            ] as const
+                                        ).map((r) => (
+                                            <button
+                                                key={r}
+                                                onClick={() => {
+                                                    setDateRangeFilter(r);
+                                                    if (r !== "custom") {
+                                                        setCustomStartDate("");
+                                                        setCustomEndDate("");
+                                                    }
+                                                    setShowDateDropdown(false);
+                                                }}
+                                                style={{
+                                                    width: "100%",
+                                                    padding: "11px 16px",
+                                                    background:
+                                                        dateRangeFilter === r
+                                                            ? "hsl(var(--secondary))"
+                                                            : "none",
+                                                    border: "none",
+                                                    textAlign: "left",
+                                                    fontSize: 14,
+                                                    fontWeight:
+                                                        dateRangeFilter === r
+                                                            ? 700
+                                                            : 500,
+                                                    color:
+                                                        dateRangeFilter === r
+                                                            ? "hsl(var(--foreground))"
+                                                            : "hsl(var(--muted-foreground))",
+                                                    cursor: "pointer",
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent:
+                                                        "space-between",
+                                                }}
+                                            >
+                                                {r === "all"
+                                                    ? "Весь час"
+                                                    : r === "today"
+                                                      ? "Сьогодні"
+                                                      : r === "week"
+                                                        ? "Цей тиждень"
+                                                        : r === "month"
+                                                          ? "Цей місяць"
+                                                          : "Вказати період"}
+                                                {dateRangeFilter === r && (
+                                                    <svg
+                                                        width="14"
+                                                        height="14"
+                                                        viewBox="0 0 24 24"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        strokeWidth="3"
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                    >
+                                                        <polyline points="20 6 9 17 4 12" />
+                                                    </svg>
+                                                )}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 )}
@@ -2161,11 +2278,10 @@ export default function Schedule() {
                                                         padding: "11px 14px",
                                                     }}
                                                 >
+                                                    {/* Desktop: inline buttons */}
                                                     <div
-                                                        style={{
-                                                            display: "flex",
-                                                            gap: 6,
-                                                        }}
+                                                        className="hidden sm:flex"
+                                                        style={{ gap: 6 }}
                                                     >
                                                         {l.status ===
                                                             "scheduled" && (
@@ -2180,16 +2296,25 @@ export default function Schedule() {
                                                                 }
                                                                 style={{
                                                                     padding:
-                                                                        "4px 10px",
+                                                                        "6px 12px",
+                                                                    minWidth: 36,
+                                                                    minHeight: 36,
                                                                     background:
                                                                         "hsl(var(--mint-light))",
                                                                     color: "hsl(var(--foreground))",
                                                                     border: "none",
                                                                     borderRadius: 6,
-                                                                    fontSize: 12,
+                                                                    fontSize: 13,
                                                                     fontWeight: 600,
                                                                     cursor: "pointer",
+                                                                    display:
+                                                                        "flex",
+                                                                    alignItems:
+                                                                        "center",
+                                                                    justifyContent:
+                                                                        "center",
                                                                 }}
+                                                                title="Виконано"
                                                             >
                                                                 ✓
                                                             </button>
@@ -2207,16 +2332,25 @@ export default function Schedule() {
                                                                 }
                                                                 style={{
                                                                     padding:
-                                                                        "4px 10px",
+                                                                        "6px 12px",
+                                                                    minWidth: 36,
+                                                                    minHeight: 36,
                                                                     background:
                                                                         "hsl(var(--coral-light))",
                                                                     color: "hsl(var(--coral-dark))",
                                                                     border: "none",
                                                                     borderRadius: 6,
-                                                                    fontSize: 12,
+                                                                    fontSize: 13,
                                                                     fontWeight: 600,
                                                                     cursor: "pointer",
+                                                                    display:
+                                                                        "flex",
+                                                                    alignItems:
+                                                                        "center",
+                                                                    justifyContent:
+                                                                        "center",
                                                                 }}
+                                                                title="Скасувати"
                                                             >
                                                                 ✕
                                                             </button>
@@ -2229,19 +2363,239 @@ export default function Schedule() {
                                                             }
                                                             style={{
                                                                 padding:
-                                                                    "4px 10px",
+                                                                    "6px 12px",
+                                                                minWidth: 36,
+                                                                minHeight: 36,
                                                                 background:
                                                                     "hsl(var(--secondary))",
                                                                 color: "hsl(var(--muted-foreground))",
                                                                 border: "none",
                                                                 borderRadius: 6,
-                                                                fontSize: 12,
+                                                                fontSize: 13,
                                                                 fontWeight: 600,
                                                                 cursor: "pointer",
+                                                                display: "flex",
+                                                                alignItems:
+                                                                    "center",
+                                                                justifyContent:
+                                                                    "center",
                                                             }}
+                                                            title="Видалити"
                                                         >
                                                             🗑
                                                         </button>
+                                                    </div>
+
+                                                    {/* Mobile: ⋯ dropdown */}
+                                                    <div
+                                                        className="flex sm:hidden"
+                                                        style={{
+                                                            position:
+                                                                "relative",
+                                                        }}
+                                                    >
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setOpenActionMenuId(
+                                                                    openActionMenuId ===
+                                                                        l.id
+                                                                        ? null
+                                                                        : l.id,
+                                                                );
+                                                            }}
+                                                            style={{
+                                                                width: 36,
+                                                                height: 36,
+                                                                borderRadius: 8,
+                                                                border: "1px solid hsl(var(--border))",
+                                                                background:
+                                                                    "hsl(var(--card))",
+                                                                color: "hsl(var(--muted-foreground))",
+                                                                cursor: "pointer",
+                                                                display: "flex",
+                                                                alignItems:
+                                                                    "center",
+                                                                justifyContent:
+                                                                    "center",
+                                                                fontSize: 18,
+                                                                fontWeight: 700,
+                                                            }}
+                                                        >
+                                                            ⋯
+                                                        </button>
+                                                        {openActionMenuId ===
+                                                            l.id && (
+                                                            <>
+                                                                <div
+                                                                    style={{
+                                                                        position:
+                                                                            "fixed",
+                                                                        inset: 0,
+                                                                        zIndex: 998,
+                                                                    }}
+                                                                    onClick={() =>
+                                                                        setOpenActionMenuId(
+                                                                            null,
+                                                                        )
+                                                                    }
+                                                                />
+                                                                <div
+                                                                    style={{
+                                                                        position:
+                                                                            "absolute",
+                                                                        right: 0,
+                                                                        top: "calc(100% + 4px)",
+                                                                        background:
+                                                                            "hsl(var(--card))",
+                                                                        border: "1px solid hsl(var(--border))",
+                                                                        borderRadius: 10,
+                                                                        boxShadow:
+                                                                            "0 8px 24px rgba(0,0,0,0.15)",
+                                                                        zIndex: 999,
+                                                                        minWidth: 160,
+                                                                        overflow:
+                                                                            "hidden",
+                                                                    }}
+                                                                    onClick={(
+                                                                        e,
+                                                                    ) =>
+                                                                        e.stopPropagation()
+                                                                    }
+                                                                >
+                                                                    {l.status ===
+                                                                        "scheduled" && (
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                updateLesson.mutate(
+                                                                                    {
+                                                                                        id: l.id,
+                                                                                        status: "completed",
+                                                                                    },
+                                                                                );
+                                                                                setOpenActionMenuId(
+                                                                                    null,
+                                                                                );
+                                                                            }}
+                                                                            style={{
+                                                                                width: "100%",
+                                                                                padding:
+                                                                                    "12px 16px",
+                                                                                background:
+                                                                                    "none",
+                                                                                border: "none",
+                                                                                textAlign:
+                                                                                    "left",
+                                                                                fontSize: 14,
+                                                                                fontWeight: 600,
+                                                                                color: "hsl(var(--foreground))",
+                                                                                cursor: "pointer",
+                                                                                display:
+                                                                                    "flex",
+                                                                                alignItems:
+                                                                                    "center",
+                                                                                gap: 10,
+                                                                                borderBottom:
+                                                                                    "1px solid hsl(var(--border) / 0.5)",
+                                                                            }}
+                                                                        >
+                                                                            <span
+                                                                                style={{
+                                                                                    fontSize: 16,
+                                                                                }}
+                                                                            >
+                                                                                ✓
+                                                                            </span>{" "}
+                                                                            Виконано
+                                                                        </button>
+                                                                    )}
+                                                                    {l.status ===
+                                                                        "scheduled" && (
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                updateLesson.mutate(
+                                                                                    {
+                                                                                        id: l.id,
+                                                                                        status: "cancelled",
+                                                                                    },
+                                                                                );
+                                                                                setOpenActionMenuId(
+                                                                                    null,
+                                                                                );
+                                                                            }}
+                                                                            style={{
+                                                                                width: "100%",
+                                                                                padding:
+                                                                                    "12px 16px",
+                                                                                background:
+                                                                                    "none",
+                                                                                border: "none",
+                                                                                textAlign:
+                                                                                    "left",
+                                                                                fontSize: 14,
+                                                                                fontWeight: 600,
+                                                                                color: "hsl(var(--coral-dark))",
+                                                                                cursor: "pointer",
+                                                                                display:
+                                                                                    "flex",
+                                                                                alignItems:
+                                                                                    "center",
+                                                                                gap: 10,
+                                                                                borderBottom:
+                                                                                    "1px solid hsl(var(--border) / 0.5)",
+                                                                            }}
+                                                                        >
+                                                                            <span
+                                                                                style={{
+                                                                                    fontSize: 16,
+                                                                                }}
+                                                                            >
+                                                                                ✕
+                                                                            </span>{" "}
+                                                                            Скасувати
+                                                                        </button>
+                                                                    )}
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setConfirmDeleteId(
+                                                                                l.id,
+                                                                            );
+                                                                            setOpenActionMenuId(
+                                                                                null,
+                                                                            );
+                                                                        }}
+                                                                        style={{
+                                                                            width: "100%",
+                                                                            padding:
+                                                                                "12px 16px",
+                                                                            background:
+                                                                                "none",
+                                                                            border: "none",
+                                                                            textAlign:
+                                                                                "left",
+                                                                            fontSize: 14,
+                                                                            fontWeight: 600,
+                                                                            color: "hsl(var(--muted-foreground))",
+                                                                            cursor: "pointer",
+                                                                            display:
+                                                                                "flex",
+                                                                            alignItems:
+                                                                                "center",
+                                                                            gap: 10,
+                                                                        }}
+                                                                    >
+                                                                        <span
+                                                                            style={{
+                                                                                fontSize: 16,
+                                                                            }}
+                                                                        >
+                                                                            🗑
+                                                                        </span>{" "}
+                                                                        Видалити
+                                                                    </button>
+                                                                </div>
+                                                            </>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
