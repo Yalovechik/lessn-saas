@@ -18,65 +18,102 @@ import NotFound from "@/pages/NotFound";
 const queryClient = new QueryClient();
 
 function AppRoutes() {
-  const { user, teacher, loading } = useAuth();
+    const { user, teacher, loading } = useAuth();
 
-  if (loading) {
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-background">
+                <div className="text-center">
+                    <div className="flex items-center justify-center gap-2 mb-3">
+                        <svg
+                            width="32"
+                            height="32"
+                            viewBox="0 0 28 28"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                        >
+                            <rect
+                                width="28"
+                                height="28"
+                                rx="7"
+                                fill="hsl(var(--mint-dark) / 0.15)"
+                            />
+                            <path
+                                d="M7 21V9h3.5v11"
+                                stroke="hsl(var(--mint-dark))"
+                                strokeWidth="2.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            />
+                            <path
+                                d="M5 16l5 6 8-11"
+                                stroke="hsl(var(--mint-dark))"
+                                strokeWidth="2.2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                opacity="0.7"
+                            />
+                        </svg>
+                        <div className="flex items-center gap-0">
+                            <span className="text-[26px] font-bold text-foreground tracking-tight leading-none">
+                                LESS
+                            </span>
+                            <span className="text-[26px] font-bold text-mint-dark tracking-tight leading-none">
+                                N
+                            </span>
+                        </div>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                        Завантаження...
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!user) {
+        return (
+            <Routes>
+                <Route path="*" element={<Auth />} />
+            </Routes>
+        );
+    }
+
+    if (!teacher) {
+        return (
+            <Routes>
+                <Route path="*" element={<Onboarding />} />
+            </Routes>
+        );
+    }
+
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="flex items-center justify-center gap-0 mb-3">
-            <span className="text-3xl font-bold text-foreground tracking-tight">less</span>
-            <span className="text-3xl font-bold text-mint-dark tracking-tight">n</span>
-          </div>
-          <p className="text-sm text-muted-foreground">Завантаження...</p>
-        </div>
-      </div>
+        <Routes>
+            <Route element={<LessnLayout />}>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/students" element={<Students />} />
+                <Route path="/students/:id" element={<StudentDetails />} />
+                <Route path="/groups" element={<Groups />} />
+                <Route path="/lessons" element={<Lessons />} />
+                <Route path="/schedule" element={<Schedule />} />
+                <Route path="/payments" element={<Payments />} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+        </Routes>
     );
-  }
-
-  if (!user) {
-    return (
-      <Routes>
-        <Route path="*" element={<Auth />} />
-      </Routes>
-    );
-  }
-
-  if (!teacher) {
-    return (
-      <Routes>
-        <Route path="*" element={<Onboarding />} />
-      </Routes>
-    );
-  }
-
-  return (
-    <Routes>
-      <Route element={<LessnLayout />}>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/students" element={<Students />} />
-        <Route path="/students/:id" element={<StudentDetails />} />
-        <Route path="/groups" element={<Groups />} />
-        <Route path="/lessons" element={<Lessons />} />
-        <Route path="/schedule" element={<Schedule />} />
-        <Route path="/payments" element={<Payments />} />
-      </Route>
-      <Route path="*" element={<NotFound />} />
-    </Routes>
-  );
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <AppRoutes />
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+            <Sonner />
+            <BrowserRouter>
+                <AuthProvider>
+                    <AppRoutes />
+                </AuthProvider>
+            </BrowserRouter>
+        </TooltipProvider>
+    </QueryClientProvider>
 );
 
 export default App;
