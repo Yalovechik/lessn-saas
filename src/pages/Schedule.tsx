@@ -450,7 +450,9 @@ export default function Schedule() {
     const [customStartDate, setCustomStartDate] = useState("");
     const [customEndDate, setCustomEndDate] = useState("");
     const [showStudentDropdown, setShowStudentDropdown] = useState(false);
+    const [studentSearch, setStudentSearch] = useState("");
     const [showDateDropdown, setShowDateDropdown] = useState(false);
+    const [showStatusDropdown, setShowStatusDropdown] = useState(false);
 
     // Add/edit modal state
     const [modal, setModal] = useState(false);
@@ -545,17 +547,26 @@ export default function Schedule() {
     }, [lessons, students, groups, getWeekMonday]);
 
     const filteredScheduleLessons = useMemo(() => {
-        if (selectedStudentFilters.length === 0) return scheduleLessons;
-        return scheduleLessons.filter((sl) => {
-            const raw = lessons.find((l) => l.id === sl.id);
-            return (
-                raw &&
-                selectedStudentFilters.includes(
-                    raw.student_id || raw.group_id || "",
-                )
-            );
-        });
-    }, [scheduleLessons, selectedStudentFilters, lessons]);
+        let result = scheduleLessons;
+        if (selectedStudentFilters.length > 0) {
+            result = result.filter((sl) => {
+                const raw = lessons.find((l) => l.id === sl.id);
+                return (
+                    raw &&
+                    selectedStudentFilters.includes(
+                        raw.student_id || raw.group_id || "",
+                    )
+                );
+            });
+        }
+        if (listFilter !== "all") {
+            result = result.filter((sl) => {
+                const raw = lessons.find((l) => l.id === sl.id);
+                return raw && raw.status === listFilter;
+            });
+        }
+        return result;
+    }, [scheduleLessons, selectedStudentFilters, listFilter, lessons]);
 
     // ── List lessons ──────────────────────────────────────────────────────────
 
@@ -797,7 +808,7 @@ export default function Schedule() {
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
-                        marginBottom: viewMode === "list" ? 16 : 0,
+                        marginBottom: 12,
                         flexWrap: "wrap",
                         gap: 12,
                     }}
@@ -1027,72 +1038,19 @@ export default function Schedule() {
                             </>
                         )}
 
-                        {/* Filter toggle */}
-                        <button
-                            onClick={() => setShowFilterSidebar((v) => !v)}
-                            style={{
-                                padding: "8px 12px",
-                                border: "1px solid hsl(var(--border))",
-                                borderRadius: 8,
-                                cursor: "pointer",
-                                transition: "all 0.15s",
-                                background: showFilterSidebar
-                                    ? "hsl(var(--mint-50))"
-                                    : "transparent",
-                                color: showFilterSidebar
-                                    ? "hsl(var(--mint-dark))"
-                                    : "hsl(var(--muted-foreground))",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 6,
-                            }}
-                            title="Фільтри"
-                        >
-                            <svg
-                                width="15"
-                                height="15"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                            >
-                                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-                            </svg>
-                            {selectedStudentFilters.length > 0 && (
-                                <span
-                                    style={{
-                                        background: "hsl(var(--mint-dark))",
-                                        color: "#fff",
-                                        borderRadius: "50%",
-                                        width: 18,
-                                        height: 18,
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        fontSize: 11,
-                                        fontWeight: 700,
-                                    }}
-                                >
-                                    {selectedStudentFilters.length}
-                                </span>
-                            )}
-                        </button>
                     </div>
                 </div>
 
-                {/* List view filters row */}
-                {viewMode === "list" && (
-                    <div
-                        style={{
-                            display: "flex",
-                            gap: 8,
-                            flexWrap: "wrap",
-                            position: "relative",
-                            zIndex: 100,
-                        }}
-                    >
+                <div
+                    style={{
+                        display: "flex",
+                        gap: 8,
+                        flexWrap: "wrap",
+                        position: "relative",
+                        zIndex: 100,
+                        marginTop: 12,
+                    }}
+                >
                         {/* Student dropdown */}
                         <div style={{ position: "relative" }}>
                             <button
@@ -1184,6 +1142,23 @@ export default function Schedule() {
                                         }}
                                         onClick={(e) => e.stopPropagation()}
                                     >
+                                        <div style={{ marginBottom: 8, position: "relative" }}>
+                                            <input
+                                                type="text"
+                                                placeholder="Пошук учня..."
+                                                value={studentSearch}
+                                                onChange={(e) => setStudentSearch(e.target.value)}
+                                                autoFocus
+                                                style={{
+                                                    width: "100%", padding: "6px 8px 6px 28px", borderRadius: 6,
+                                                    border: "1px solid hsl(var(--border))", background: "hsl(var(--background))",
+                                                    fontSize: 13, outline: "none", color: "hsl(var(--foreground))"
+                                                }}
+                                            />
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "hsl(var(--muted-foreground))" }}>
+                                                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                                            </svg>
+                                        </div>
                                         {selectedStudentFilters.length > 0 && (
                                             <button
                                                 onClick={() =>
@@ -1209,7 +1184,7 @@ export default function Schedule() {
                                                 ✕ Скинути фільтр
                                             </button>
                                         )}
-                                        {students.map((s) => {
+                                        {students.filter(s => s.name.toLowerCase().includes(studentSearch.toLowerCase())).map((s) => {
                                             const sel =
                                                 selectedStudentFilters.includes(
                                                     s.id,
@@ -1282,50 +1257,112 @@ export default function Schedule() {
                         </div>
 
                         {/* Status filter */}
-                        <div
-                            style={{
-                                display: "flex",
-                                gap: 6,
-                                flexWrap: "wrap",
-                            }}
-                        >
-                            {(
-                                [
-                                    "all",
-                                    "scheduled",
-                                    "completed",
-                                    "cancelled",
-                                    "rescheduled",
-                                ] as const
-                            ).map((f) => (
+                        {viewMode === "grid" ? (
+                            <div style={{ position: "relative" }}>
                                 <button
-                                    key={f}
-                                    onClick={() => setListFilter(f)}
+                                    onClick={() => { setShowStatusDropdown((v) => !v); setShowStudentDropdown(false); setShowDateDropdown(false); }}
                                     style={{
                                         padding: "6px 14px",
                                         borderRadius: 20,
-                                        border: `1.5px solid ${listFilter === f ? "hsl(var(--foreground))" : "hsl(var(--border))"}`,
+                                        border: `1.5px solid ${listFilter !== "all" ? "hsl(var(--foreground))" : "hsl(var(--border))"}`,
                                         fontSize: 13,
                                         fontWeight: 600,
                                         cursor: "pointer",
                                         transition: "all 0.15s",
                                         whiteSpace: "nowrap",
-                                        background:
-                                            listFilter === f
-                                                ? "hsl(var(--foreground))"
-                                                : "hsl(var(--card))",
-                                        color:
-                                            listFilter === f
-                                                ? "hsl(var(--card))"
-                                                : "hsl(var(--muted-foreground))",
+                                        background: listFilter !== "all" ? "hsl(var(--foreground))" : "hsl(var(--card))",
+                                        color: listFilter !== "all" ? "hsl(var(--card))" : "hsl(var(--muted-foreground))",
+                                        display: "flex", alignItems: "center", gap: 6,
                                     }}
                                 >
-                                    {f === "all" ? "Усі" : STATUS_LABELS[f]}
+                                    {listFilter === "all" ? "Статус" : STATUS_LABELS[listFilter]}
+                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                                        style={{ transform: showStatusDropdown ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>
+                                        <polyline points="6 9 12 15 18 9" />
+                                    </svg>
                                 </button>
-                            ))}
-                        </div>
+                                {showStatusDropdown && (
+                                    <>
+                                        <div style={{ position: "fixed", inset: 0, zIndex: 1998 }} onClick={() => setShowStatusDropdown(false)} />
+                                        <div style={{
+                                            position: "absolute", top: "calc(100% + 6px)", left: 0,
+                                            background: "hsl(var(--card))", border: "1px solid hsl(var(--border))",
+                                            borderRadius: 12, boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+                                            zIndex: 1999, minWidth: 180, overflow: "hidden",
+                                        }}>
+                                            {(["all", "scheduled", "completed", "cancelled", "rescheduled"] as const).map((f) => (
+                                                <button
+                                                    key={f}
+                                                    onClick={() => { setListFilter(f); setShowStatusDropdown(false); }}
+                                                    style={{
+                                                        width: "100%", padding: "11px 16px",
+                                                        background: listFilter === f ? "hsl(var(--secondary))" : "none",
+                                                        border: "none", textAlign: "left",
+                                                        fontSize: 14,
+                                                        fontWeight: listFilter === f ? 700 : 500,
+                                                        color: listFilter === f ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
+                                                        cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between",
+                                                    }}
+                                                >
+                                                    {f === "all" ? "Усі статуси" : STATUS_LABELS[f]}
+                                                    {listFilter === f && (
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                                            <polyline points="20 6 9 17 4 12" />
+                                                        </svg>
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        ) : (
+                            <div
+                                style={{
+                                    display: "flex",
+                                    gap: 6,
+                                    flexWrap: "wrap",
+                                }}
+                            >
+                                {(
+                                    [
+                                        "all",
+                                        "scheduled",
+                                        "completed",
+                                        "cancelled",
+                                        "rescheduled",
+                                    ] as const
+                                ).map((f) => (
+                                    <button
+                                        key={f}
+                                        onClick={() => setListFilter(f)}
+                                        style={{
+                                            padding: "6px 14px",
+                                            borderRadius: 20,
+                                            border: `1.5px solid ${listFilter === f ? "hsl(var(--foreground))" : "hsl(var(--border))"}`,
+                                            fontSize: 13,
+                                            fontWeight: 600,
+                                            cursor: "pointer",
+                                            transition: "all 0.15s",
+                                            whiteSpace: "nowrap",
+                                            background:
+                                                listFilter === f
+                                                    ? "hsl(var(--foreground))"
+                                                    : "hsl(var(--card))",
+                                            color:
+                                                listFilter === f
+                                                    ? "hsl(var(--card))"
+                                                    : "hsl(var(--muted-foreground))",
+                                        }}
+                                    >
+                                        {f === "all" ? "Усі" : STATUS_LABELS[f]}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
 
                         {/* Date range filter */}
+                        {viewMode === "list" && (
                         <div style={{ position: "relative" }}>
                             <button
                                 onClick={() => setShowDateDropdown((v) => !v)}
@@ -1547,145 +1584,11 @@ export default function Schedule() {
                                 </>
                             )}
                         </div>
-                    </div>
-                )}
-            </div>
-
-            {/* ── Filter Sidebar ── */}
-            {showFilterSidebar && viewMode === "grid" && (
-                <div
-                    style={{
-                        background: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: 12,
-                        padding: 20,
-                        boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
-                    }}
-                >
-                    <div
-                        style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            marginBottom: 16,
-                        }}
-                    >
-                        <h3
-                            style={{
-                                fontSize: 14,
-                                fontWeight: 700,
-                                color: "hsl(var(--foreground))",
-                            }}
-                        >
-                            Фільтри
-                        </h3>
-                        {selectedStudentFilters.length > 0 && (
-                            <button
-                                onClick={() => setSelectedStudentFilters([])}
-                                style={{
-                                    fontSize: 12,
-                                    color: "hsl(var(--mint-dark))",
-                                    background: "none",
-                                    border: "none",
-                                    cursor: "pointer",
-                                    fontWeight: 600,
-                                }}
-                            >
-                                Скинути
-                            </button>
                         )}
                     </div>
-                    <p
-                        style={{
-                            fontSize: 12,
-                            fontWeight: 600,
-                            color: "hsl(var(--muted-foreground))",
-                            marginBottom: 10,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.05em",
-                        }}
-                    >
-                        Учні
-                    </p>
-                    <div
-                        style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 4,
-                        }}
-                    >
-                        {students.map((s) => {
-                            const sel = selectedStudentFilters.includes(s.id);
-                            return (
-                                <label
-                                    key={s.id}
-                                    style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: 8,
-                                        padding: "6px 8px",
-                                        borderRadius: 6,
-                                        cursor: "pointer",
-                                        background: sel
-                                            ? "hsl(var(--mint-50))"
-                                            : "transparent",
-                                    }}
-                                >
-                                    <input
-                                        type="checkbox"
-                                        checked={sel}
-                                        onChange={() =>
-                                            toggleStudentFilter(s.id)
-                                        }
-                                    />
-                                    <span
-                                        style={{
-                                            fontSize: 13,
-                                            fontWeight: 500,
-                                            color: "hsl(var(--foreground))",
-                                        }}
-                                    >
-                                        {s.name}
-                                    </span>
-                                </label>
-                            );
-                        })}
-                    </div>
-                    <div
-                        style={{
-                            marginTop: 16,
-                            paddingTop: 16,
-                            borderTop: "1px solid hsl(var(--border))",
-                        }}
-                    >
-                        <label
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 8,
-                                cursor: "pointer",
-                            }}
-                        >
-                            <input
-                                type="checkbox"
-                                checked={showEmptySlots}
-                                onChange={(e) =>
-                                    setShowEmptySlots(e.target.checked)
-                                }
-                            />
-                            <span
-                                style={{
-                                    fontSize: 13,
-                                    fontWeight: 500,
-                                    color: "hsl(var(--foreground))",
-                                }}
-                            >
-                                Показувати порожні слоти
-                            </span>
-                        </label>
-                    </div>
-                </div>
-            )}
+            </div>
+
+
 
             {/* ── Grid View ── */}
             {viewMode === "grid" && (
