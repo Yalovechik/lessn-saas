@@ -453,6 +453,7 @@ export default function Schedule() {
     );
     const [showCustomDuration, setShowCustomDuration] = useState(false);
     const [customDurationInput, setCustomDurationInput] = useState("");
+    const [formIsGroup, setFormIsGroup] = useState(false);
 
     // ── Week helpers ──────────────────────────────────────────────────────────
 
@@ -635,6 +636,7 @@ export default function Schedule() {
         setEditingLessonId(null);
         setSelectedCell({ day, timeSlot });
         setFormDate(date);
+        setFormIsGroup(false);
         setFormStudentId(students[0]?.id || "");
         setFormNotes("");
         setFormDuration(60);
@@ -651,8 +653,10 @@ export default function Schedule() {
         if (!raw) return;
         setEditingLessonId(lessonId);
         setFormDate(raw.date);
+        setFormIsGroup(!!raw.is_group);
         setFormStudentId(raw.student_id || raw.group_id || "");
         setFormNotes(raw.notes || "");
+
         const dur = raw.duration || 60;
         setFormDuration(dur);
         const isCustom = ![30, 45, 60, 90].includes(dur);
@@ -708,9 +712,9 @@ export default function Schedule() {
                 const dow = cur.getDay() === 0 ? 6 : cur.getDay() - 1;
                 if (recurringDays.includes(dow)) {
                     newLessons.push({
-                        student_id: formStudentId,
-                        group_id: null,
-                        is_group: false,
+                        student_id: formIsGroup ? null : formStudentId,
+                        group_id: formIsGroup ? formStudentId : null,
+                        is_group: formIsGroup,
                         date: cur.toISOString().split("T")[0],
                         time,
                         duration: formDuration,
@@ -724,9 +728,9 @@ export default function Schedule() {
             if (newLessons.length > 0) await addLessons.mutateAsync(newLessons);
         } else {
             await addLesson.mutateAsync({
-                student_id: formStudentId,
-                group_id: null,
-                is_group: false,
+                student_id: formIsGroup ? null : formStudentId,
+                group_id: formIsGroup ? formStudentId : null,
+                is_group: formIsGroup,
                 date: formDate,
                 time,
                 duration: formDuration,
@@ -2779,8 +2783,54 @@ export default function Schedule() {
                         </div>
                     ) : (
                         <div>
+                            {/* Lesson type toggle */}
+                            <div
+                                style={{
+                                    display: "flex",
+                                    gap: 8,
+                                    marginBottom: 12,
+                                }}
+                            >
+                                {([false, true] as const).map((isGrp) => {
+                                    const active = formIsGroup === isGrp;
+                                    return (
+                                        <button
+                                            key={String(isGrp)}
+                                            type="button"
+                                            onClick={() => {
+                                                setFormIsGroup(isGrp);
+                                                setFormStudentId(
+                                                    isGrp
+                                                        ? groups[0]?.id || ""
+                                                        : students[0]?.id || "",
+                                                );
+                                            }}
+                                            style={{
+                                                flex: 1,
+                                                padding: "9px 4px",
+                                                borderRadius: 8,
+                                                border: `2px solid ${active ? "hsl(var(--foreground))" : "hsl(var(--border))"}`,
+                                                background: active
+                                                    ? "hsl(var(--foreground))"
+                                                    : "hsl(var(--card))",
+                                                color: active
+                                                    ? "hsl(var(--card))"
+                                                    : "hsl(var(--muted-foreground))",
+                                                fontSize: 13,
+                                                fontWeight: 600,
+                                                cursor: "pointer",
+                                                transition: "all 0.15s",
+                                            }}
+                                        >
+                                            {isGrp
+                                                ? "Групове"
+                                                : "Індивідуальне"}
+                                        </button>
+                                    );
+                                })}
+                            </div>
                             <label className="block text-[13px] font-semibold text-muted-foreground mb-1.5">
-                                Учень
+                                {formIsGroup ? "Група" : "Учень"}
                             </label>
                             <select
                                 value={formStudentId}
@@ -2789,11 +2839,17 @@ export default function Schedule() {
                                 }
                                 className="w-full px-3 py-2.5 rounded-md border-[1.5px] border-border bg-card text-sm outline-none"
                             >
-                                {students.map((s) => (
-                                    <option key={s.id} value={s.id}>
-                                        {s.name} — {s.subject}
-                                    </option>
-                                ))}
+                                {formIsGroup
+                                    ? groups.map((g) => (
+                                          <option key={g.id} value={g.id}>
+                                              {g.name}
+                                          </option>
+                                      ))
+                                    : students.map((s) => (
+                                          <option key={s.id} value={s.id}>
+                                              {s.name} — {s.subject}
+                                          </option>
+                                      ))}
                             </select>
                         </div>
                     )}
