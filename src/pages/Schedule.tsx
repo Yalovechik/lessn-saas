@@ -1967,7 +1967,11 @@ export default function Schedule() {
                                                                       updateLesson.mutate(
                                                                           {
                                                                               id: lesson.id,
-                                                                              status: "completed",
+                                                                              status:
+                                                                                  lesson.status ===
+                                                                                  "completed"
+                                                                                      ? "scheduled"
+                                                                                      : "completed",
                                                                           },
                                                                       )
                                                                 : undefined
@@ -1978,7 +1982,11 @@ export default function Schedule() {
                                                                       updateLesson.mutate(
                                                                           {
                                                                               id: lesson.id,
-                                                                              status: "cancelled",
+                                                                              status:
+                                                                                  lesson.status ===
+                                                                                  "cancelled"
+                                                                                      ? "scheduled"
+                                                                                      : "cancelled",
                                                                           },
                                                                       )
                                                                 : undefined

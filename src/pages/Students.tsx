@@ -17,15 +17,21 @@ export default function Students() {
         lessons,
         payments,
         addStudent,
+        addStudents,
         updateStudent,
         deleteStudent,
     } = useAppData();
     const { teacher } = useAuth();
     const navigate = useNavigate();
     const [modal, setModal] = useState(false);
+    const [batchModal, setBatchModal] = useState(false);
     const [editId, setEditId] = useState<string | null>(null);
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
     const [form, setForm] = useState({ name: "", pricePerLesson: "" });
+    const [batchForm, setBatchForm] = useState({
+        names: "",
+        pricePerLesson: "",
+    });
     const [currentPage, setCurrentPage] = useState(1);
     const studentsPerPage = 10;
     const { toast, showToast, hideToast } = useToast();
@@ -40,6 +46,61 @@ export default function Students() {
         setForm({ name: s.name, pricePerLesson: String(s.price_per_lesson) });
         setEditId(s.id);
         setModal(true);
+    };
+
+    const openBatch = () => {
+        setBatchForm({ names: "", pricePerLesson: "" });
+        setBatchModal(true);
+    };
+
+    const saveBatch = async () => {
+        if (!batchForm.names.trim() || !batchForm.pricePerLesson || !teacher)
+            return;
+
+        const names = batchForm.names
+            .split("\n")
+            .map((n) => n.trim())
+            .filter((n) => n.length > 0);
+
+        if (names.length === 0) return;
+
+        const duplicatesInBatch = names.filter(
+            (name, index) =>
+                names.findIndex(
+                    (n) => n.toLowerCase() === name.toLowerCase(),
+                ) !== index,
+        );
+        if (duplicatesInBatch.length > 0) {
+            showToast(
+                `У списку є дублікати: ${[...new Set(duplicatesInBatch)].join(", ")}`,
+                "error",
+            );
+            return;
+        }
+
+        const existingNames = names.filter((name) =>
+            students.some((s) => s.name.toLowerCase() === name.toLowerCase()),
+        );
+        if (existingNames.length > 0) {
+            showToast(`Вже існують: ${existingNames.join(", ")}`, "error");
+            return;
+        }
+
+        try {
+            await addStudents.mutateAsync(
+                names.map((name) => ({
+                    name,
+                    subject: teacher.subject,
+                    price_per_lesson: Number(batchForm.pricePerLesson),
+                    teacher_id: teacher.id,
+                    notes: "",
+                })),
+            );
+            showToast(`${names.length} учнів успішно додано`, "success");
+            setBatchModal(false);
+        } catch (err: any) {
+            showToast(err.message, "error");
+        }
     };
 
     const save = async () => {
@@ -135,13 +196,22 @@ export default function Students() {
                             зареєстровано
                         </p>
                     </div>
-                    <button
-                        onClick={openNew}
-                        className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-md bg-primary text-primary-foreground text-[13px] font-semibold transition-all hover:bg-mint-dark hover:-translate-y-px hover:shadow-md"
-                    >
-                        <Plus className="h-4 w-4" />
-                        Додати учня
-                    </button>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={openBatch}
+                            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-md bg-secondary text-foreground text-[13px] font-semibold transition-all hover:bg-border"
+                        >
+                            <Plus className="h-4 w-4" />
+                            Додати групою
+                        </button>
+                        <button
+                            onClick={openNew}
+                            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-md bg-primary text-primary-foreground text-[13px] font-semibold transition-all hover:bg-mint-dark hover:-translate-y-px hover:shadow-md"
+                        >
+                            <Plus className="h-4 w-4" />
+                            Додати учня
+                        </button>
+                    </div>
                 </div>
 
                 {students.length === 0 ? (
@@ -350,6 +420,141 @@ export default function Students() {
                             }
                         />
                     </div>
+                </div>
+            </Modal>
+
+            {/* Batch Add Modal */}
+            <Modal
+                open={batchModal}
+                onClose={() => setBatchModal(false)}
+                title="Додати учнів групою"
+                footer={
+                    <>
+                        <button
+                            onClick={() => setBatchModal(false)}
+                            className="px-4 py-2 rounded-md bg-secondary text-secondary-foreground text-sm font-medium hover:bg-border transition-all"
+                        >
+                            Скасувати
+                        </button>
+                        <button
+                            onClick={saveBatch}
+                            disabled={
+                                !batchForm.names.trim() ||
+                                !batchForm.pricePerLesson
+                            }
+                            className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-semibold hover:bg-mint-dark transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            Додати (
+                            {
+                                batchForm.names
+                                    .split("\n")
+                                    .filter((n) => n.trim()).length
+                            }
+                            )
+                        </button>
+                    </>
+                }
+            >
+                <div className="space-y-4">
+                    <div
+                        style={{
+                            background: "hsl(var(--mint-50))",
+                            border: "1px solid hsl(var(--mint-dark) / 0.15)",
+                            borderRadius: 8,
+                            padding: "12px 14px",
+                            fontSize: 13,
+                            color: "hsl(var(--foreground))",
+                        }}
+                    >
+                        💡 <strong>Підказка:</strong> Введіть кожне ім'я з
+                        нового рядка. Усі учні матимуть однакову ціну за урок.
+                    </div>
+                    <div>
+                        <label className="block text-[13px] font-semibold text-muted-foreground mb-1.5">
+                            Імена учнів (кожен з нового рядка)
+                        </label>
+                        <textarea
+                            className="w-full px-3 py-2.5 rounded-md border-[1.5px] border-border bg-card text-sm outline-none transition-all focus:border-foreground"
+                            placeholder={
+                                "Іван Петренко\nМарія Коваленко\nОлександр Шевченко"
+                            }
+                            value={batchForm.names}
+                            onChange={(e) =>
+                                setBatchForm({
+                                    ...batchForm,
+                                    names: e.target.value,
+                                })
+                            }
+                            rows={8}
+                            style={{ resize: "vertical" }}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                            {
+                                batchForm.names
+                                    .split("\n")
+                                    .filter((n) => n.trim()).length
+                            }{" "}
+                            учнів буде додано
+                        </p>
+                    </div>
+                    <div>
+                        <label className="block text-[13px] font-semibold text-muted-foreground mb-1.5">
+                            Ціна за урок для всіх (грн)
+                        </label>
+                        <input
+                            type="number"
+                            min="0"
+                            className="w-full px-3 py-2.5 rounded-md border-[1.5px] border-border bg-card text-sm outline-none transition-all focus:border-foreground"
+                            placeholder="напр. 500"
+                            value={batchForm.pricePerLesson}
+                            onChange={(e) =>
+                                setBatchForm({
+                                    ...batchForm,
+                                    pricePerLesson: e.target.value,
+                                })
+                            }
+                        />
+                    </div>
+                    {batchForm.names.trim() && batchForm.pricePerLesson && (
+                        <div
+                            style={{
+                                background: "hsl(var(--secondary) / 0.5)",
+                                border: "1px solid hsl(var(--border))",
+                                borderRadius: 8,
+                                padding: "10px 14px",
+                                fontSize: 13,
+                            }}
+                        >
+                            <p className="text-[13px] font-semibold mb-1">
+                                Попередній перегляд:
+                            </p>
+                            <div className="text-muted-foreground">
+                                {batchForm.names
+                                    .split("\n")
+                                    .filter((n) => n.trim())
+                                    .slice(0, 3)
+                                    .map((name, i) => (
+                                        <div key={i} className="text-xs py-0.5">
+                                            • {name} —{" "}
+                                            {Number(
+                                                batchForm.pricePerLesson,
+                                            ).toLocaleString("uk")}{" "}
+                                            грн/урок
+                                        </div>
+                                    ))}
+                                {batchForm.names
+                                    .split("\n")
+                                    .filter((n) => n.trim()).length > 3 && (
+                                    <div className="text-xs text-muted-foreground/60 py-0.5">
+                                        ... та ще{" "}
+                                        {batchForm.names
+                                            .split("\n")
+                                            .filter((n) => n.trim()).length - 3}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </Modal>
 
