@@ -96,29 +96,79 @@ export default function Payments() {
             ? Math.floor(Number(form.amount) / selectedStudent.price_per_lesson)
             : 0;
 
+    const thStyle: React.CSSProperties = {
+        textAlign: "left",
+        padding: "11px 16px",
+        fontSize: 11,
+        fontWeight: 600,
+        color: "hsl(var(--muted-foreground))",
+        textTransform: "uppercase",
+        background: "hsl(var(--secondary) / 0.5)",
+        borderBottom: "1px solid hsl(var(--border))",
+    };
+
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div
+                style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    flexWrap: "wrap",
+                    gap: 12,
+                }}
+            >
                 <div>
-                    <h1 className="text-[26px] font-bold tracking-tight text-foreground leading-tight">
+                    <h1
+                        style={{
+                            fontSize: 26,
+                            fontWeight: 700,
+                            letterSpacing: "-0.3px",
+                            color: "hsl(var(--foreground))",
+                            lineHeight: 1.2,
+                        }}
+                    >
                         Оплати
                     </h1>
-                    <p className="text-sm text-muted-foreground mt-1">
+                    <p
+                        style={{
+                            fontSize: 14,
+                            color: "hsl(var(--muted-foreground))",
+                            marginTop: 4,
+                        }}
+                    >
                         {payments.length} {pluralPayments(payments.length)}{" "}
                         записано
                     </p>
                 </div>
                 <button
                     onClick={openNew}
-                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-md bg-primary text-primary-foreground text-[13px] font-semibold transition-all hover:bg-mint-dark"
+                    style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "9px 16px",
+                        borderRadius: 8,
+                        border: "none",
+                        background: "hsl(var(--foreground))",
+                        color: "hsl(var(--card))",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                    }}
                 >
-                    <Plus className="h-4 w-4" />
-                    Записати оплату
+                    <Plus size={14} /> Записати оплату
                 </button>
             </div>
 
             {students.length === 0 ? (
-                <div className="bg-card rounded-lg border border-border">
+                <div
+                    style={{
+                        background: "hsl(var(--card))",
+                        borderRadius: 12,
+                        border: "1px solid hsl(var(--border))",
+                    }}
+                >
                     <EmptyState
                         icon="💰"
                         title="Спочатку додайте учнів"
@@ -126,7 +176,13 @@ export default function Payments() {
                     />
                 </div>
             ) : sorted.length === 0 ? (
-                <div className="bg-card rounded-lg border border-border">
+                <div
+                    style={{
+                        background: "hsl(var(--card))",
+                        borderRadius: 12,
+                        border: "1px solid hsl(var(--border))",
+                    }}
+                >
                     <EmptyState
                         icon="💰"
                         title="Оплат ще немає"
@@ -142,109 +198,350 @@ export default function Payments() {
                     />
                 </div>
             ) : (
-                <div className="bg-card rounded-lg border border-border overflow-hidden">
-                    <table className="w-full">
-                        <thead>
-                            <tr className="bg-secondary/50 border-b border-border">
-                                <th className="text-left px-4 py-3 text-[11px] font-semibold text-muted-foreground uppercase">
-                                    Учень
-                                </th>
-                                <th className="text-left px-4 py-3 text-[11px] font-semibold text-muted-foreground uppercase">
-                                    Сума
-                                </th>
-                                <th className="text-left px-4 py-3 text-[11px] font-semibold text-muted-foreground uppercase hidden sm:table-cell">
-                                    Уроків
-                                </th>
-                                <th className="text-left px-4 py-3 text-[11px] font-semibold text-muted-foreground uppercase hidden sm:table-cell">
-                                    Дата
-                                </th>
-                                <th className="text-left px-4 py-3 text-[11px] font-semibold text-muted-foreground uppercase hidden md:table-cell">
-                                    Примітка
-                                </th>
-                                <th className="text-left px-4 py-3 text-[11px] font-semibold text-muted-foreground uppercase"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {paginatedPayments.map((p) => {
-                                const st = getStudent(p.student_id);
-                                const la =
-                                    st && st.price_per_lesson > 0
-                                        ? Math.floor(
-                                              p.amount / st.price_per_lesson,
-                                          )
-                                        : 0;
-                                return (
-                                    <tr
-                                        key={p.id}
-                                        className="border-b border-border/50 hover:bg-secondary/30 transition-colors"
-                                    >
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center gap-3">
-                                                <Avatar
-                                                    name={st?.name || "?"}
-                                                    size={28}
-                                                />
-                                                <span className="text-sm font-medium text-foreground">
-                                                    {st?.name || "Невідомий"}
+                <div
+                    style={{
+                        background: "hsl(var(--card))",
+                        borderRadius: 12,
+                        border: "1px solid hsl(var(--border))",
+                        boxShadow: "0 1px 3px rgba(15,23,42,.06)",
+                        overflow: "hidden",
+                    }}
+                >
+                    <div style={{ overflowX: "auto" }}>
+                        <table
+                            style={{
+                                width: "100%",
+                                borderCollapse: "collapse",
+                            }}
+                        >
+                            <thead>
+                                <tr>
+                                    <th style={thStyle}>Учень</th>
+                                    <th style={thStyle}>Сума</th>
+                                    <th style={thStyle}>Уроків</th>
+                                    <th style={thStyle}>Дата</th>
+                                    <th style={thStyle}>Примітка</th>
+                                    <th style={{ ...thStyle, width: 100 }}>
+                                        Дії
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {paginatedPayments.map((p) => {
+                                    const st = getStudent(p.student_id);
+                                    const la =
+                                        st && st.price_per_lesson > 0
+                                            ? Math.floor(
+                                                  p.amount /
+                                                      st.price_per_lesson,
+                                              )
+                                            : 0;
+                                    return (
+                                        <tr
+                                            key={p.id}
+                                            style={{
+                                                borderBottom:
+                                                    "1px solid hsl(var(--border) / 0.5)",
+                                                transition: "background .15s",
+                                            }}
+                                            onMouseEnter={(e) =>
+                                                (e.currentTarget.style.background =
+                                                    "hsl(var(--secondary) / 0.3)")
+                                            }
+                                            onMouseLeave={(e) =>
+                                                (e.currentTarget.style.background =
+                                                    "transparent")
+                                            }
+                                        >
+                                            <td
+                                                style={{ padding: "14px 16px" }}
+                                            >
+                                                <div
+                                                    style={{
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        gap: 10,
+                                                    }}
+                                                >
+                                                    <Avatar
+                                                        name={st?.name || "?"}
+                                                        size={32}
+                                                    />
+                                                    <span
+                                                        style={{
+                                                            fontWeight: 600,
+                                                            color: "hsl(var(--foreground))",
+                                                        }}
+                                                    >
+                                                        {st?.name ||
+                                                            "Невідомий"}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td
+                                                style={{
+                                                    padding: "14px 16px",
+                                                    fontWeight: 700,
+                                                    color: "hsl(var(--foreground))",
+                                                }}
+                                            >
+                                                {formatCurrency(p.amount)}
+                                            </td>
+                                            <td
+                                                style={{ padding: "14px 16px" }}
+                                            >
+                                                <span
+                                                    style={{
+                                                        display: "inline-block",
+                                                        padding: "3px 10px",
+                                                        borderRadius: 20,
+                                                        fontSize: 13,
+                                                        fontWeight: 600,
+                                                        background:
+                                                            "hsl(var(--mint-light))",
+                                                        color: "hsl(var(--foreground))",
+                                                    }}
+                                                >
+                                                    +{la}
                                                 </span>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-3 text-sm font-semibold text-foreground">
-                                            {formatCurrency(p.amount)}
-                                        </td>
-                                        <td className="px-4 py-3 text-sm text-mint-dark font-medium hidden sm:table-cell">
-                                            +{la} уроків
-                                        </td>
-                                        <td className="px-4 py-3 text-sm text-muted-foreground hidden sm:table-cell">
-                                            {formatDate(p.date)}
-                                        </td>
-                                        <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">
-                                            {p.note || "—"}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center gap-1">
-                                                <button
-                                                    onClick={() => openEdit(p)}
-                                                    className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-sm text-muted-foreground hover:text-foreground rounded-md hover:bg-secondary transition-colors"
+                                            </td>
+                                            <td
+                                                style={{
+                                                    padding: "14px 16px",
+                                                    fontSize: 14,
+                                                    color: "hsl(var(--foreground))",
+                                                }}
+                                            >
+                                                {formatDate(p.date)}
+                                            </td>
+                                            <td
+                                                style={{
+                                                    padding: "14px 16px",
+                                                    fontSize: 13,
+                                                    color: "hsl(var(--muted-foreground))",
+                                                    maxWidth: 200,
+                                                    overflow: "hidden",
+                                                    textOverflow: "ellipsis",
+                                                    whiteSpace: "nowrap",
+                                                }}
+                                            >
+                                                {p.note || "—"}
+                                            </td>
+                                            <td
+                                                style={{ padding: "14px 16px" }}
+                                            >
+                                                <div
+                                                    style={{
+                                                        display: "flex",
+                                                        gap: 4,
+                                                        alignItems: "center",
+                                                    }}
                                                 >
-                                                    ✏️
-                                                </button>
-                                                <button
-                                                    onClick={() =>
-                                                        setDeleteConfirmId(p.id)
-                                                    }
-                                                    className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-sm text-coral hover:text-coral-dark rounded-md hover:bg-coral-light transition-colors"
-                                                >
-                                                    🗑️
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
+                                                    <button
+                                                        onClick={() =>
+                                                            openEdit(p)
+                                                        }
+                                                        title="Редагувати"
+                                                        style={{
+                                                            padding: "6px",
+                                                            borderRadius: 6,
+                                                            border: "none",
+                                                            background:
+                                                                "transparent",
+                                                            cursor: "pointer",
+                                                            color: "hsl(var(--foreground))",
+                                                            display: "flex",
+                                                            alignItems:
+                                                                "center",
+                                                        }}
+                                                    >
+                                                        <svg
+                                                            width="14"
+                                                            height="14"
+                                                            viewBox="0 0 24 24"
+                                                            fill="none"
+                                                            stroke="currentColor"
+                                                            strokeWidth="2"
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                        >
+                                                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                                        </svg>
+                                                    </button>
+                                                    <button
+                                                        onClick={() =>
+                                                            setDeleteConfirmId(
+                                                                p.id,
+                                                            )
+                                                        }
+                                                        title="Видалити"
+                                                        style={{
+                                                            padding: "6px",
+                                                            borderRadius: 6,
+                                                            border: "none",
+                                                            background:
+                                                                "transparent",
+                                                            cursor: "pointer",
+                                                            color: "hsl(var(--coral))",
+                                                            display: "flex",
+                                                            alignItems:
+                                                                "center",
+                                                        }}
+                                                    >
+                                                        <svg
+                                                            width="14"
+                                                            height="14"
+                                                            viewBox="0 0 24 24"
+                                                            fill="none"
+                                                            stroke="currentColor"
+                                                            strokeWidth="2"
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                        >
+                                                            <polyline points="3 6 5 6 21 6" />
+                                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
 
                     {totalPages > 1 && (
-                        <div className="flex items-center justify-between px-4 py-3 border-t border-border">
-                            <span className="text-xs text-muted-foreground">
-                                Показано {startIndex + 1}-
+                        <div
+                            style={{
+                                padding: "16px 20px",
+                                borderTop: "1px solid hsl(var(--border))",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                            }}
+                        >
+                            <div
+                                style={{
+                                    fontSize: 13,
+                                    color: "hsl(var(--muted-foreground))",
+                                }}
+                            >
+                                Показано {startIndex + 1}–
                                 {Math.min(
                                     startIndex + paymentsPerPage,
                                     sorted.length,
                                 )}{" "}
                                 з {sorted.length}
-                            </span>
-                            <div className="flex gap-1">
+                            </div>
+                            <div style={{ display: "flex", gap: 4 }}>
+                                <button
+                                    onClick={() =>
+                                        setCurrentPage((p) =>
+                                            Math.max(1, p - 1),
+                                        )
+                                    }
+                                    disabled={currentPage === 1}
+                                    style={{
+                                        padding: "6px 12px",
+                                        borderRadius: 6,
+                                        border: "none",
+                                        background: "transparent",
+                                        cursor:
+                                            currentPage === 1
+                                                ? "not-allowed"
+                                                : "pointer",
+                                        opacity: currentPage === 1 ? 0.4 : 1,
+                                        fontSize: 13,
+                                        fontWeight: 600,
+                                        color: "hsl(var(--foreground))",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 4,
+                                    }}
+                                >
+                                    <svg
+                                        width="14"
+                                        height="14"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    >
+                                        <polyline points="15 18 9 12 15 6" />
+                                    </svg>{" "}
+                                    Назад
+                                </button>
                                 {Array.from({ length: totalPages }, (_, i) => (
                                     <button
                                         key={i}
                                         onClick={() => setCurrentPage(i + 1)}
-                                        className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${currentPage === i + 1 ? "bg-foreground text-card" : "text-muted-foreground hover:bg-secondary"}`}
+                                        style={{
+                                            padding: "6px 12px",
+                                            borderRadius: 6,
+                                            fontSize: 13,
+                                            fontWeight: 600,
+                                            cursor: "pointer",
+                                            border: "none",
+                                            background:
+                                                currentPage === i + 1
+                                                    ? "hsl(var(--foreground))"
+                                                    : "transparent",
+                                            color:
+                                                currentPage === i + 1
+                                                    ? "hsl(var(--card))"
+                                                    : "hsl(var(--muted-foreground))",
+                                            minWidth: 36,
+                                        }}
                                     >
                                         {i + 1}
                                     </button>
                                 ))}
+                                <button
+                                    onClick={() =>
+                                        setCurrentPage((p) =>
+                                            Math.min(totalPages, p + 1),
+                                        )
+                                    }
+                                    disabled={currentPage === totalPages}
+                                    style={{
+                                        padding: "6px 12px",
+                                        borderRadius: 6,
+                                        border: "none",
+                                        background: "transparent",
+                                        cursor:
+                                            currentPage === totalPages
+                                                ? "not-allowed"
+                                                : "pointer",
+                                        opacity:
+                                            currentPage === totalPages
+                                                ? 0.4
+                                                : 1,
+                                        fontSize: 13,
+                                        fontWeight: 600,
+                                        color: "hsl(var(--foreground))",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 4,
+                                    }}
+                                >
+                                    Вперед{" "}
+                                    <svg
+                                        width="14"
+                                        height="14"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    >
+                                        <polyline points="9 18 15 12 9 6" />
+                                    </svg>
+                                </button>
                             </div>
                         </div>
                     )}

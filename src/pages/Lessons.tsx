@@ -11,7 +11,7 @@ import { Avatar } from "@/components/lessn/Avatar";
 import { EmptyState } from "@/components/lessn/EmptyState";
 import { Modal } from "@/components/lessn/Modal";
 import { STATUS_LABELS, FILTER_LABELS } from "@/constants";
-import { Calendar, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { CalendarPicker } from "@/components/ui/calendar-picker";
 
 export default function Lessons() {
@@ -29,6 +29,8 @@ export default function Lessons() {
         notes: "",
     });
     const [filter, setFilter] = useState("all");
+    const [currentPage, setCurrentPage] = useState(1);
+    const lessonsPerPage = 15;
 
     const openNew = () => {
         setForm({
@@ -47,7 +49,6 @@ export default function Lessons() {
         if (!form.date || !form.time || !teacher) return;
         if (form.type === "individual" && !form.studentId) return;
         if (form.type === "group" && !form.groupId) return;
-
         await addLesson.mutateAsync({
             student_id: form.type === "individual" ? form.studentId : null,
             group_id: form.type === "group" ? form.groupId : null,
@@ -64,15 +65,13 @@ export default function Lessons() {
 
     const setStatus = async (
         id: string,
-        status: "completed" | "cancelled" | "rescheduled",
+        status: "scheduled" | "completed" | "cancelled" | "rescheduled",
     ) => {
         await updateLesson.mutateAsync({ id, status });
     };
 
     const remove = async (id: string) => {
-        if (confirm("Видалити урок?")) {
-            await deleteLesson.mutateAsync(id);
-        }
+        if (confirm("Видалити урок?")) await deleteLesson.mutateAsync(id);
     };
 
     const filtered =
@@ -82,61 +81,145 @@ export default function Lessons() {
             b.date.localeCompare(a.date) ||
             (b.time || "").localeCompare(a.time || ""),
     );
-
-    const getStudent = (id: string) => students.find((s) => s.id === id);
-    const getGroup = (id: string) => groups.find((g) => g.id === id);
+    const totalPages = Math.ceil(sorted.length / lessonsPerPage);
+    const startIndex = (currentPage - 1) * lessonsPerPage;
+    const paginatedLessons = sorted.slice(
+        startIndex,
+        startIndex + lessonsPerPage,
+    );
 
     const getLessonDisplay = (lesson: (typeof lessons)[0]) => {
         if (lesson.is_group && lesson.group_id) {
-            const group = getGroup(lesson.group_id);
+            const g = groups.find((g) => g.id === lesson.group_id);
             return {
-                name: group?.name || "Невідома група",
-                subtitle: `${group?.student_ids?.length || 0} учнів`,
+                name: g?.name || "Невідома група",
+                subtitle: `${g?.student_ids?.length || 0} учнів`,
                 isGroup: true,
             };
         }
-        const student = lesson.student_id
-            ? getStudent(lesson.student_id)
+        const s = lesson.student_id
+            ? students.find((s) => s.id === lesson.student_id)
             : null;
         return {
-            name: student?.name || "Невідомий",
-            subtitle: student?.subject || "",
+            name: s?.name || "Невідомий",
+            subtitle: s?.subject || "",
             isGroup: false,
         };
     };
 
+    const thStyle: React.CSSProperties = {
+        textAlign: "left",
+        padding: "11px 16px",
+        fontSize: 11,
+        fontWeight: 600,
+        color: "hsl(var(--muted-foreground))",
+        textTransform: "uppercase",
+        background: "hsl(var(--secondary) / 0.5)",
+        borderBottom: "1px solid hsl(var(--border))",
+    };
+
+    const statusBadge = (status: string) => {
+        const map: Record<string, { bg: string; color: string; dot: string }> =
+            {
+                scheduled: {
+                    bg: "hsl(var(--secondary))",
+                    color: "hsl(var(--foreground))",
+                    dot: "hsl(var(--foreground))",
+                },
+                completed: {
+                    bg: "hsl(var(--mint-light))",
+                    color: "hsl(var(--foreground))",
+                    dot: "hsl(var(--mint-dark))",
+                },
+                cancelled: {
+                    bg: "hsl(var(--coral-light))",
+                    color: "hsl(var(--coral-dark))",
+                    dot: "hsl(var(--coral))",
+                },
+                rescheduled: {
+                    bg: "hsl(var(--orange-light))",
+                    color: "hsl(var(--orange-dark))",
+                    dot: "hsl(var(--orange))",
+                },
+            };
+        return map[status] || map.scheduled;
+    };
+
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            {/* Header */}
+            <div
+                style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    flexWrap: "wrap",
+                    gap: 12,
+                }}
+            >
                 <div>
-                    <h1 className="text-[26px] font-bold tracking-tight text-foreground leading-tight">
+                    <h1
+                        style={{
+                            fontSize: 26,
+                            fontWeight: 700,
+                            letterSpacing: "-0.3px",
+                            color: "hsl(var(--foreground))",
+                            lineHeight: 1.2,
+                        }}
+                    >
                         Уроки
                     </h1>
-                    <p className="text-sm text-muted-foreground mt-1">
+                    <p
+                        style={{
+                            fontSize: 14,
+                            color: "hsl(var(--muted-foreground))",
+                            marginTop: 4,
+                        }}
+                    >
                         {lessons.length} {pluralLessons(lessons.length)} загалом
                     </p>
                 </div>
                 <button
                     onClick={openNew}
-                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-md bg-primary text-primary-foreground text-[13px] font-semibold transition-all hover:bg-mint-dark"
+                    disabled={students.length === 0}
+                    style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "9px 16px",
+                        borderRadius: 8,
+                        border: "none",
+                        background: "hsl(var(--foreground))",
+                        color: "hsl(var(--card))",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor:
+                            students.length === 0 ? "not-allowed" : "pointer",
+                        opacity: students.length === 0 ? 0.5 : 1,
+                    }}
                 >
-                    <Plus className="h-4 w-4" />
-                    Додати урок
+                    <Plus size={14} /> Додати урок
                 </button>
             </div>
 
             {students.length === 0 ? (
-                <div className="bg-card rounded-lg border border-border">
+                <div
+                    style={{
+                        background: "hsl(var(--card))",
+                        borderRadius: 12,
+                        border: "1px solid hsl(var(--border))",
+                    }}
+                >
                     <EmptyState
                         icon="📚"
-                        title="Спочатку додайте учнів"
-                        desc="Для планування уроків потрібні учні"
+                        title="Спочатку додайте учня"
+                        desc="Потрібен хоча б один учень для планування уроків"
                     />
                 </div>
             ) : (
                 <>
-                    {/* Filters */}
-                    <div className="flex flex-wrap gap-2">
+                    {/* Filter pills */}
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                         {(
                             [
                                 "all",
@@ -148,12 +231,30 @@ export default function Lessons() {
                         ).map((f) => (
                             <button
                                 key={f}
-                                onClick={() => setFilter(f)}
-                                className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
-                                    filter === f
-                                        ? "bg-foreground text-card border-[1.5px] border-foreground"
-                                        : "bg-card text-muted-foreground border-[1.5px] border-border hover:border-muted-foreground/30"
-                                }`}
+                                onClick={() => {
+                                    setFilter(f);
+                                    setCurrentPage(1);
+                                }}
+                                style={{
+                                    padding: "6px 14px",
+                                    borderRadius: 20,
+                                    border:
+                                        filter === f
+                                            ? "1.5px solid hsl(var(--foreground))"
+                                            : "1.5px solid hsl(var(--border))",
+                                    background:
+                                        filter === f
+                                            ? "hsl(var(--foreground))"
+                                            : "hsl(var(--card))",
+                                    color:
+                                        filter === f
+                                            ? "hsl(var(--card))"
+                                            : "hsl(var(--muted-foreground))",
+                                    fontSize: 12.5,
+                                    fontWeight: 500,
+                                    cursor: "pointer",
+                                    transition: "all .15s",
+                                }}
                             >
                                 {FILTER_LABELS[f]}
                             </button>
@@ -161,158 +262,511 @@ export default function Lessons() {
                     </div>
 
                     {sorted.length === 0 ? (
-                        <div className="bg-card rounded-lg border border-border">
+                        <div
+                            style={{
+                                background: "hsl(var(--card))",
+                                borderRadius: 12,
+                                border: "1px solid hsl(var(--border))",
+                            }}
+                        >
                             <EmptyState
-                                icon="📋"
-                                title="Немає уроків"
-                                desc="За обраним фільтром уроків немає"
+                                icon="📝"
+                                title="Уроків не знайдено"
+                                desc="Спробуйте інший фільтр або додайте новий урок"
                             />
                         </div>
                     ) : (
-                        <div className="bg-card rounded-lg border border-border overflow-hidden">
-                            <table className="w-full">
-                                <thead>
-                                    <tr className="bg-secondary/50 border-b border-border">
-                                        <th className="text-left px-4 py-3 text-[11px] font-semibold text-muted-foreground uppercase">
-                                            Учень
-                                        </th>
-                                        <th className="text-left px-4 py-3 text-[11px] font-semibold text-muted-foreground uppercase hidden sm:table-cell">
-                                            Дата
-                                        </th>
-                                        <th className="text-left px-4 py-3 text-[11px] font-semibold text-muted-foreground uppercase hidden sm:table-cell">
-                                            Час
-                                        </th>
-                                        <th className="text-left px-4 py-3 text-[11px] font-semibold text-muted-foreground uppercase">
-                                            Статус
-                                        </th>
-                                        <th className="text-left px-4 py-3 text-[11px] font-semibold text-muted-foreground uppercase">
-                                            Дії
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {sorted.map((l) => {
-                                        const display = getLessonDisplay(l);
-                                        return (
-                                            <tr
-                                                key={l.id}
-                                                className="border-b border-border/50 hover:bg-secondary/30 transition-colors"
-                                            >
-                                                <td className="px-4 py-3">
-                                                    <div className="flex items-center gap-3">
-                                                        {display.isGroup ? (
-                                                            <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-sm">
-                                                                👥
+                        <div
+                            style={{
+                                background: "hsl(var(--card))",
+                                borderRadius: 12,
+                                border: "1px solid hsl(var(--border))",
+                                boxShadow: "0 1px 3px rgba(15,23,42,.06)",
+                                overflow: "hidden",
+                            }}
+                        >
+                            <div style={{ overflowX: "auto" }}>
+                                <table
+                                    style={{
+                                        width: "100%",
+                                        borderCollapse: "collapse",
+                                    }}
+                                >
+                                    <thead>
+                                        <tr>
+                                            <th style={thStyle}>Учень</th>
+                                            <th style={thStyle}>Дата</th>
+                                            <th style={thStyle}>Час</th>
+                                            <th style={thStyle}>Статус</th>
+                                            <th style={thStyle}>Дії</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {paginatedLessons.map((l) => {
+                                            const display = getLessonDisplay(l);
+                                            const badge = statusBadge(l.status);
+                                            return (
+                                                <tr
+                                                    key={l.id}
+                                                    style={{
+                                                        borderBottom:
+                                                            "1px solid hsl(var(--border) / 0.5)",
+                                                        transition:
+                                                            "background .15s",
+                                                    }}
+                                                    onMouseEnter={(e) =>
+                                                        (e.currentTarget.style.background =
+                                                            "hsl(var(--secondary) / 0.3)")
+                                                    }
+                                                    onMouseLeave={(e) =>
+                                                        (e.currentTarget.style.background =
+                                                            "transparent")
+                                                    }
+                                                >
+                                                    <td
+                                                        style={{
+                                                            padding:
+                                                                "14px 16px",
+                                                        }}
+                                                    >
+                                                        <div
+                                                            style={{
+                                                                display: "flex",
+                                                                alignItems:
+                                                                    "center",
+                                                                gap: 10,
+                                                            }}
+                                                        >
+                                                            {display.isGroup ? (
+                                                                <div
+                                                                    style={{
+                                                                        width: 32,
+                                                                        height: 32,
+                                                                        borderRadius:
+                                                                            "50%",
+                                                                        background:
+                                                                            "hsl(var(--mint-light))",
+                                                                        display:
+                                                                            "flex",
+                                                                        alignItems:
+                                                                            "center",
+                                                                        justifyContent:
+                                                                            "center",
+                                                                    }}
+                                                                >
+                                                                    👥
+                                                                </div>
+                                                            ) : (
+                                                                <Avatar
+                                                                    name={
+                                                                        display.name
+                                                                    }
+                                                                    size={32}
+                                                                />
+                                                            )}
+                                                            <div>
+                                                                <div
+                                                                    style={{
+                                                                        fontWeight: 600,
+                                                                        color: "hsl(var(--foreground))",
+                                                                        display:
+                                                                            "flex",
+                                                                        alignItems:
+                                                                            "center",
+                                                                        gap: 6,
+                                                                    }}
+                                                                >
+                                                                    {
+                                                                        display.name
+                                                                    }
+                                                                    {display.isGroup && (
+                                                                        <span
+                                                                            style={{
+                                                                                fontSize: 11,
+                                                                                padding:
+                                                                                    "2px 6px",
+                                                                                borderRadius: 4,
+                                                                                background:
+                                                                                    "hsl(var(--mint-light))",
+                                                                                color: "hsl(var(--foreground))",
+                                                                                fontWeight: 600,
+                                                                            }}
+                                                                        >
+                                                                            ГРУПА
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <div
+                                                                    style={{
+                                                                        fontSize: 12,
+                                                                        color: "hsl(var(--muted-foreground))",
+                                                                    }}
+                                                                >
+                                                                    {
+                                                                        display.subtitle
+                                                                    }
+                                                                </div>
                                                             </div>
-                                                        ) : (
-                                                            <Avatar
-                                                                name={
-                                                                    display.name
-                                                                }
-                                                                size={32}
-                                                            />
-                                                        )}
-                                                        <div>
-                                                            <p className="text-sm font-medium text-foreground">
-                                                                {display.name}
-                                                            </p>
-                                                            <p className="text-xs text-muted-foreground">
-                                                                {
-                                                                    display.subtitle
-                                                                }
-                                                            </p>
                                                         </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-3 text-sm text-foreground hidden sm:table-cell">
-                                                    {formatDate(l.date)}
-                                                </td>
-                                                <td className="px-4 py-3 text-sm text-foreground hidden sm:table-cell">
-                                                    {l.time
-                                                        ? formatTime(l.time)
-                                                        : "—"}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <span
-                                                        className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${
-                                                            l.status ===
-                                                            "completed"
-                                                                ? "bg-mint-light text-foreground"
-                                                                : l.status ===
-                                                                    "cancelled"
-                                                                  ? "bg-coral-light text-coral-dark"
-                                                                  : l.status ===
-                                                                      "rescheduled"
-                                                                    ? "bg-orange-light text-orange-dark"
-                                                                    : "bg-secondary text-foreground"
-                                                        }`}
+                                                    </td>
+                                                    <td
+                                                        style={{
+                                                            padding:
+                                                                "14px 16px",
+                                                            fontSize: 14,
+                                                        }}
+                                                    >
+                                                        {formatDate(l.date)}
+                                                    </td>
+                                                    <td
+                                                        style={{
+                                                            padding:
+                                                                "14px 16px",
+                                                            fontSize: 14,
+                                                            color: l.time
+                                                                ? "hsl(var(--foreground))"
+                                                                : "hsl(var(--muted-foreground))",
+                                                        }}
+                                                    >
+                                                        {l.time
+                                                            ? formatTime(l.time)
+                                                            : "—"}
+                                                    </td>
+                                                    <td
+                                                        style={{
+                                                            padding:
+                                                                "14px 16px",
+                                                        }}
                                                     >
                                                         <span
-                                                            className={`w-1.5 h-1.5 rounded-full ${
-                                                                l.status ===
-                                                                "completed"
-                                                                    ? "bg-mint-dark"
-                                                                    : l.status ===
-                                                                        "cancelled"
-                                                                      ? "bg-coral"
-                                                                      : l.status ===
-                                                                          "rescheduled"
-                                                                        ? "bg-orange"
-                                                                        : "bg-foreground"
-                                                            }`}
-                                                        />
-                                                        {
-                                                            STATUS_LABELS[
-                                                                l.status
-                                                            ]
-                                                        }
-                                                    </span>
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <div className="flex items-center gap-1">
-                                                        {l.status !==
-                                                            "completed" && (
-                                                            <button
-                                                                onClick={() =>
-                                                                    setStatus(
-                                                                        l.id,
-                                                                        "completed",
-                                                                    )
-                                                                }
-                                                                className="px-3 py-2 min-h-[36px] text-xs bg-mint-light text-foreground rounded font-medium hover:bg-mint/30 transition-all"
-                                                            >
-                                                                Готово
-                                                            </button>
-                                                        )}
-                                                        {l.status ===
-                                                            "scheduled" && (
-                                                            <button
-                                                                onClick={() =>
-                                                                    setStatus(
-                                                                        l.id,
-                                                                        "cancelled",
-                                                                    )
-                                                                }
-                                                                className="px-3 py-2 min-h-[36px] text-xs bg-coral-light text-coral-dark rounded font-medium hover:bg-coral/20 transition-all"
-                                                            >
-                                                                Скасувати
-                                                            </button>
-                                                        )}
-                                                        <button
-                                                            onClick={() =>
-                                                                remove(l.id)
-                                                            }
-                                                            className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-muted-foreground/30 hover:text-coral transition-colors rounded-md"
+                                                            style={{
+                                                                display:
+                                                                    "inline-flex",
+                                                                alignItems:
+                                                                    "center",
+                                                                gap: 6,
+                                                                padding:
+                                                                    "4px 10px",
+                                                                borderRadius: 20,
+                                                                fontSize: 12,
+                                                                fontWeight: 600,
+                                                                background:
+                                                                    badge.bg,
+                                                                color: badge.color,
+                                                            }}
                                                         >
-                                                            🗑️
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
+                                                            <span
+                                                                style={{
+                                                                    width: 6,
+                                                                    height: 6,
+                                                                    borderRadius:
+                                                                        "50%",
+                                                                    background:
+                                                                        badge.dot,
+                                                                    flexShrink: 0,
+                                                                }}
+                                                            />
+                                                            {
+                                                                STATUS_LABELS[
+                                                                    l.status
+                                                                ]
+                                                            }
+                                                        </span>
+                                                    </td>
+                                                    <td
+                                                        style={{
+                                                            padding:
+                                                                "14px 16px",
+                                                        }}
+                                                    >
+                                                        <div
+                                                            style={{
+                                                                display: "flex",
+                                                                gap: 4,
+                                                                flexWrap:
+                                                                    "wrap",
+                                                                alignItems:
+                                                                    "center",
+                                                            }}
+                                                        >
+                                                            {/* Complete toggle */}
+                                                            <button
+                                                                onClick={() =>
+                                                                    setStatus(
+                                                                        l.id,
+                                                                        l.status ===
+                                                                            "completed"
+                                                                            ? "scheduled"
+                                                                            : "completed",
+                                                                    )
+                                                                }
+                                                                style={{
+                                                                    padding:
+                                                                        "5px 12px",
+                                                                    borderRadius: 6,
+                                                                    border: "none",
+                                                                    fontSize: 12,
+                                                                    fontWeight: 600,
+                                                                    cursor: "pointer",
+                                                                    transition:
+                                                                        "all .15s",
+                                                                    background:
+                                                                        l.status ===
+                                                                        "completed"
+                                                                            ? "hsl(var(--mint-dark))"
+                                                                            : "hsl(var(--mint-light))",
+                                                                    color:
+                                                                        l.status ===
+                                                                        "completed"
+                                                                            ? "#fff"
+                                                                            : "hsl(var(--foreground))",
+                                                                }}
+                                                            >
+                                                                ✓{" "}
+                                                                {l.status ===
+                                                                "completed"
+                                                                    ? "Виконано"
+                                                                    : "Готово"}
+                                                            </button>
+                                                            {/* Cancel toggle */}
+                                                            <button
+                                                                onClick={() =>
+                                                                    setStatus(
+                                                                        l.id,
+                                                                        l.status ===
+                                                                            "cancelled"
+                                                                            ? "scheduled"
+                                                                            : "cancelled",
+                                                                    )
+                                                                }
+                                                                style={{
+                                                                    padding:
+                                                                        "5px 12px",
+                                                                    borderRadius: 6,
+                                                                    border: "none",
+                                                                    fontSize: 12,
+                                                                    fontWeight: 600,
+                                                                    cursor: "pointer",
+                                                                    transition:
+                                                                        "all .15s",
+                                                                    background:
+                                                                        l.status ===
+                                                                        "cancelled"
+                                                                            ? "hsl(var(--coral))"
+                                                                            : "hsl(var(--coral-light))",
+                                                                    color:
+                                                                        l.status ===
+                                                                        "cancelled"
+                                                                            ? "#fff"
+                                                                            : "hsl(var(--coral-dark))",
+                                                                }}
+                                                            >
+                                                                {l.status ===
+                                                                "cancelled"
+                                                                    ? "✕ Скасовано"
+                                                                    : "Скасувати"}
+                                                            </button>
+                                                            {/* Delete */}
+                                                            <button
+                                                                onClick={() =>
+                                                                    remove(l.id)
+                                                                }
+                                                                style={{
+                                                                    padding:
+                                                                        "5px 8px",
+                                                                    borderRadius: 6,
+                                                                    border: "none",
+                                                                    background:
+                                                                        "transparent",
+                                                                    cursor: "pointer",
+                                                                    color: "hsl(var(--muted-foreground))",
+                                                                    fontSize: 14,
+                                                                    display:
+                                                                        "flex",
+                                                                    alignItems:
+                                                                        "center",
+                                                                }}
+                                                                onMouseEnter={(
+                                                                    e,
+                                                                ) =>
+                                                                    (e.currentTarget.style.color =
+                                                                        "hsl(var(--coral))")
+                                                                }
+                                                                onMouseLeave={(
+                                                                    e,
+                                                                ) =>
+                                                                    (e.currentTarget.style.color =
+                                                                        "hsl(var(--muted-foreground))")
+                                                                }
+                                                            >
+                                                                <svg
+                                                                    width="14"
+                                                                    height="14"
+                                                                    viewBox="0 0 24 24"
+                                                                    fill="none"
+                                                                    stroke="currentColor"
+                                                                    strokeWidth="2"
+                                                                    strokeLinecap="round"
+                                                                    strokeLinejoin="round"
+                                                                >
+                                                                    <polyline points="3 6 5 6 21 6" />
+                                                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {totalPages > 1 && (
+                                <div
+                                    style={{
+                                        padding: "16px 20px",
+                                        borderTop:
+                                            "1px solid hsl(var(--border))",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "space-between",
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            fontSize: 13,
+                                            color: "hsl(var(--muted-foreground))",
+                                        }}
+                                    >
+                                        Показано {startIndex + 1}
+                                        {"-"}
+                                        {Math.min(
+                                            startIndex + lessonsPerPage,
+                                            sorted.length,
+                                        )}{" "}
+                                        з {sorted.length}
+                                    </div>
+                                    <div style={{ display: "flex", gap: 4 }}>
+                                        <button
+                                            onClick={() =>
+                                                setCurrentPage((p) =>
+                                                    Math.max(1, p - 1),
+                                                )
+                                            }
+                                            disabled={currentPage === 1}
+                                            style={{
+                                                padding: "6px 12px",
+                                                borderRadius: 6,
+                                                border: "none",
+                                                background: "transparent",
+                                                cursor:
+                                                    currentPage === 1
+                                                        ? "not-allowed"
+                                                        : "pointer",
+                                                opacity:
+                                                    currentPage === 1 ? 0.4 : 1,
+                                                fontSize: 13,
+                                                fontWeight: 600,
+                                                color: "hsl(var(--foreground))",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: 4,
+                                            }}
+                                        >
+                                            <svg
+                                                width="14"
+                                                height="14"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                            >
+                                                <polyline points="15 18 9 12 15 6" />
+                                            </svg>{" "}
+                                            Назад
+                                        </button>
+                                        {Array.from(
+                                            { length: totalPages },
+                                            (_, i) => (
+                                                <button
+                                                    key={i}
+                                                    onClick={() =>
+                                                        setCurrentPage(i + 1)
+                                                    }
+                                                    style={{
+                                                        padding: "6px 12px",
+                                                        borderRadius: 6,
+                                                        fontSize: 13,
+                                                        fontWeight: 600,
+                                                        cursor: "pointer",
+                                                        border: "none",
+                                                        background:
+                                                            currentPage ===
+                                                            i + 1
+                                                                ? "hsl(var(--foreground))"
+                                                                : "transparent",
+                                                        color:
+                                                            currentPage ===
+                                                            i + 1
+                                                                ? "hsl(var(--card))"
+                                                                : "hsl(var(--muted-foreground))",
+                                                        minWidth: 36,
+                                                    }}
+                                                >
+                                                    {i + 1}
+                                                </button>
+                                            ),
+                                        )}
+                                        <button
+                                            onClick={() =>
+                                                setCurrentPage((p) =>
+                                                    Math.min(totalPages, p + 1),
+                                                )
+                                            }
+                                            disabled={
+                                                currentPage === totalPages
+                                            }
+                                            style={{
+                                                padding: "6px 12px",
+                                                borderRadius: 6,
+                                                border: "none",
+                                                background: "transparent",
+                                                cursor:
+                                                    currentPage === totalPages
+                                                        ? "not-allowed"
+                                                        : "pointer",
+                                                opacity:
+                                                    currentPage === totalPages
+                                                        ? 0.4
+                                                        : 1,
+                                                fontSize: 13,
+                                                fontWeight: 600,
+                                                color: "hsl(var(--foreground))",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: 4,
+                                            }}
+                                        >
+                                            Вперед{" "}
+                                            <svg
+                                                width="14"
+                                                height="14"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                            >
+                                                <polyline points="9 18 15 12 9 6" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </>
@@ -341,7 +795,6 @@ export default function Lessons() {
                 }
             >
                 <div className="space-y-4">
-                    {/* Type toggle */}
                     <div>
                         <label className="block text-[13px] font-semibold text-muted-foreground mb-1.5">
                             Тип уроку
@@ -353,11 +806,26 @@ export default function Lessons() {
                                     onClick={() =>
                                         setForm({ ...form, type: t })
                                     }
-                                    className={`flex-1 py-2.5 rounded-md text-sm font-medium transition-all ${
-                                        form.type === t
-                                            ? "border-2 border-foreground bg-mint-50 text-foreground font-bold"
-                                            : "border-[1.5px] border-border text-muted-foreground"
-                                    }`}
+                                    style={{
+                                        flex: 1,
+                                        padding: "10px",
+                                        borderRadius: 8,
+                                        border:
+                                            form.type === t
+                                                ? "2px solid hsl(var(--foreground))"
+                                                : "1.5px solid hsl(var(--border))",
+                                        background:
+                                            form.type === t
+                                                ? "hsl(var(--mint-50))"
+                                                : "hsl(var(--card))",
+                                        color:
+                                            form.type === t
+                                                ? "hsl(var(--foreground))"
+                                                : "hsl(var(--muted-foreground))",
+                                        fontWeight: form.type === t ? 700 : 500,
+                                        cursor: "pointer",
+                                        fontSize: 14,
+                                    }}
                                 >
                                     {t === "individual"
                                         ? "👤 Індивідуальний"
@@ -366,7 +834,6 @@ export default function Lessons() {
                             ))}
                         </div>
                     </div>
-
                     {form.type === "individual" ? (
                         <div>
                             <label className="block text-[13px] font-semibold text-muted-foreground mb-1.5">
@@ -413,18 +880,15 @@ export default function Lessons() {
                             </select>
                         </div>
                     )}
-
                     <div>
                         <label className="block text-[13px] font-semibold text-muted-foreground mb-1.5">
                             Дата
                         </label>
-
                         <CalendarPicker
                             value={form.date}
                             onChange={(e) => setForm({ ...form, date: e })}
                         />
                     </div>
-
                     <div>
                         <label className="block text-[13px] font-semibold text-muted-foreground mb-1.5">
                             Час початку
@@ -438,7 +902,6 @@ export default function Lessons() {
                             }
                         />
                     </div>
-
                     <div>
                         <label className="block text-[13px] font-semibold text-muted-foreground mb-1.5">
                             Нотатки
