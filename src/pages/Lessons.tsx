@@ -11,7 +11,8 @@ import { Avatar } from "@/components/lessn/Avatar";
 import { EmptyState } from "@/components/lessn/EmptyState";
 import { Modal } from "@/components/lessn/Modal";
 import { STATUS_LABELS, FILTER_LABELS } from "@/constants";
-import { Plus } from "lucide-react";
+import { Calendar, Plus } from "lucide-react";
+import { CalendarPicker } from "@/components/ui/calendar-picker";
 
 export default function Lessons() {
     const { students, lessons, groups, addLesson, updateLesson, deleteLesson } =
@@ -417,13 +418,10 @@ export default function Lessons() {
                         <label className="block text-[13px] font-semibold text-muted-foreground mb-1.5">
                             Дата
                         </label>
-                        <input
-                            type="date"
-                            className="w-full px-3 py-2.5 rounded-md border-[1.5px] border-border bg-card text-sm outline-none"
+
+                        <CalendarPicker
                             value={form.date}
-                            onChange={(e) =>
-                                setForm({ ...form, date: e.target.value })
-                            }
+                            onChange={(e) => setForm({ ...form, date: e })}
                         />
                     </div>
 
@@ -451,7 +449,7 @@ export default function Lessons() {
                             onChange={(e) =>
                                 setForm({ ...form, notes: e.target.value })
                             }
-                            placeholder="Необов'язково"
+                            placeholder="Тема, домашнє завдання тощо (необовʼязково)"
                         />
                     </div>
                 </div>

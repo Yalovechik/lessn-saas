@@ -16,18 +16,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { Modal } from "@/components/lessn/Modal";
 import { formatDate, formatTime, todayStr } from "@/utils/helpers";
 import { STATUS_LABELS } from "@/constants";
+import {
+    CalendarPicker,
+    CalendarRangePicker,
+} from "@/components/ui/calendar-picker";
 
-const TIME_SLOTS = [
-    "8:00",
-    "9:00",
-    "10:00",
-    "11:00",
-    "13:00",
-    "14:00",
-    "15:00",
-    "16:00",
-];
-const SLOT_HOURS = [8, 9, 10, 11, 13, 14, 15, 16];
+const DEFAULT_SLOT_HOURS = [8, 9, 10, 11, 12, 13, 14, 15, 16];
+const SLOT_HOURS = Array.from({ length: 24 }, (_, i) => i); // full 0–23 for mapping
+const TIME_SLOTS = SLOT_HOURS.map((h) => `${h}:00`);
 const DAYS = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "НД"];
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -455,6 +451,8 @@ export default function Schedule() {
     const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(
         null,
     );
+    const [showCustomDuration, setShowCustomDuration] = useState(false);
+    const [customDurationInput, setCustomDurationInput] = useState("");
 
     // ── Week helpers ──────────────────────────────────────────────────────────
 
@@ -643,6 +641,8 @@ export default function Schedule() {
         setShowRecurring(false);
         setRecurringDays([]);
         setRecurringEndDate("");
+        setShowCustomDuration(false);
+        setCustomDurationInput("");
         setModal(true);
     };
 
@@ -653,7 +653,11 @@ export default function Schedule() {
         setFormDate(raw.date);
         setFormStudentId(raw.student_id || raw.group_id || "");
         setFormNotes(raw.notes || "");
-        setFormDuration(raw.duration || 60);
+        const dur = raw.duration || 60;
+        setFormDuration(dur);
+        const isCustom = ![30, 45, 60, 90].includes(dur);
+        setShowCustomDuration(isCustom);
+        setCustomDurationInput(isCustom ? String(dur) : "");
         setShowRecurring(false);
         setRecurringDays([]);
         setRecurringEndDate("");
@@ -1415,8 +1419,11 @@ export default function Schedule() {
                                                     if (r !== "custom") {
                                                         setCustomStartDate("");
                                                         setCustomEndDate("");
+                                                        setShowDateDropdown(
+                                                            false,
+                                                        );
                                                     }
-                                                    setShowDateDropdown(false);
+                                                    // keep dropdown open for custom to show calendar
                                                 }}
                                                 style={{
                                                     width: "100%",
@@ -1426,6 +1433,10 @@ export default function Schedule() {
                                                             ? "hsl(var(--secondary))"
                                                             : "none",
                                                     border: "none",
+                                                    borderBottom:
+                                                        r === "month"
+                                                            ? "1px solid hsl(var(--border))"
+                                                            : "none",
                                                     textAlign: "left",
                                                     fontSize: 14,
                                                     fontWeight:
@@ -1452,22 +1463,61 @@ export default function Schedule() {
                                                         : r === "month"
                                                           ? "Цей місяць"
                                                           : "Вказати період"}
-                                                {dateRangeFilter === r && (
+                                                {dateRangeFilter === r &&
+                                                    r !== "custom" && (
+                                                        <svg
+                                                            width="14"
+                                                            height="14"
+                                                            viewBox="0 0 24 24"
+                                                            fill="none"
+                                                            stroke="currentColor"
+                                                            strokeWidth="3"
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                        >
+                                                            <polyline points="20 6 9 17 4 12" />
+                                                        </svg>
+                                                    )}
+                                                {r === "custom" && (
                                                     <svg
-                                                        width="14"
-                                                        height="14"
+                                                        width="11"
+                                                        height="11"
                                                         viewBox="0 0 24 24"
                                                         fill="none"
                                                         stroke="currentColor"
-                                                        strokeWidth="3"
+                                                        strokeWidth="2"
                                                         strokeLinecap="round"
                                                         strokeLinejoin="round"
+                                                        style={{
+                                                            transform:
+                                                                dateRangeFilter ===
+                                                                "custom"
+                                                                    ? "rotate(90deg)"
+                                                                    : "none",
+                                                            transition:
+                                                                "transform 0.2s",
+                                                        }}
                                                     >
-                                                        <polyline points="20 6 9 17 4 12" />
+                                                        <polyline points="9 18 15 12 9 6" />
                                                     </svg>
                                                 )}
                                             </button>
                                         ))}
+                                        {/* Inline calendar for custom range */}
+                                        {dateRangeFilter === "custom" && (
+                                            <CalendarRangePicker
+                                                startDate={customStartDate}
+                                                endDate={customEndDate}
+                                                onSelect={(s, e) => {
+                                                    setCustomStartDate(s);
+                                                    setCustomEndDate(e);
+                                                    if (s && e)
+                                                        setShowDateDropdown(
+                                                            false,
+                                                        );
+                                                }}
+                                            />
+                                        )}
                                     </div>
                                 </>
                             )}
@@ -1708,11 +1758,26 @@ export default function Schedule() {
                         {/* Time rows — flat CSS grid so lessons can span rows */}
                         {(() => {
                             const ROW_H = 120; // px per 60-min slot
-                            const visibleSlots = TIME_SLOTS.map(
-                                (_, i) => i,
-                            ).filter(
-                                (i) => showEmptySlots || hasLessonsInSlot(i),
-                            );
+
+                            // Always show 8–16 (incl. 12), plus any hour that has a lesson outside that range
+                            // Also include all hours a lesson spans into (e.g. 90min at 17:00 needs 17 AND 18)
+                            const lessonHours = new Set<number>();
+                            filteredScheduleLessons.forEach((l) => {
+                                const slotsNeeded = Math.ceil(l.duration / 60);
+                                for (let s = 0; s < slotsNeeded; s++) {
+                                    const h = l.timeSlot + s;
+                                    if (h < 24) lessonHours.add(h);
+                                }
+                            });
+                            const visibleHourSet = new Set([
+                                ...DEFAULT_SLOT_HOURS,
+                                ...[...lessonHours].filter(
+                                    (h) => !DEFAULT_SLOT_HOURS.includes(h),
+                                ),
+                            ]);
+                            const visibleSlots = Array.from(
+                                visibleHourSet,
+                            ).sort((a, b) => a - b);
                             if (visibleSlots.length === 0) return null;
 
                             // Map visible slot index → grid row (1-based)
@@ -1743,7 +1808,7 @@ export default function Schedule() {
                                 >
                                     {visibleSlots.map((timeIndex, pos) => {
                                         const gridRow = pos + 1;
-                                        const isEven = timeIndex % 2 === 0;
+                                        const isEven = pos % 2 === 0;
                                         const borderTop =
                                             pos > 0
                                                 ? "1px solid hsl(var(--border))"
@@ -1938,62 +2003,46 @@ export default function Schedule() {
                         boxShadow: "0 1px 3px rgba(15,23,42,.06)",
                     }}
                 >
-                    {dateRangeFilter === "custom" && (
-                        <div
-                            style={{
-                                display: "flex",
-                                gap: 12,
-                                padding: 16,
-                                background: "hsl(var(--mint-50))",
-                                borderBottom: "1px solid hsl(var(--border))",
-                                alignItems: "flex-end",
-                                flexWrap: "wrap",
-                            }}
-                        >
-                            <div style={{ flex: 1, minWidth: 140 }}>
-                                <label
-                                    style={{
-                                        fontSize: 12,
-                                        fontWeight: 600,
-                                        color: "hsl(var(--foreground))",
-                                        marginBottom: 6,
-                                        display: "block",
-                                    }}
+                    {dateRangeFilter === "custom" &&
+                        customStartDate &&
+                        customEndDate && (
+                            <div
+                                style={{
+                                    padding: "10px 16px",
+                                    background: "hsl(var(--mint-50))",
+                                    borderBottom:
+                                        "1px solid hsl(var(--border))",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 8,
+                                    fontSize: 13,
+                                    color: "hsl(var(--foreground))",
+                                    fontWeight: 600,
+                                }}
+                            >
+                                <svg
+                                    width="13"
+                                    height="13"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
                                 >
-                                    Від
-                                </label>
-                                <input
-                                    type="date"
-                                    value={customStartDate}
-                                    onChange={(e) =>
-                                        setCustomStartDate(e.target.value)
-                                    }
-                                    className="w-full px-3 py-2 rounded-md border border-border bg-card text-sm outline-none focus:border-foreground"
-                                />
-                            </div>
-                            <div style={{ flex: 1, minWidth: 140 }}>
-                                <label
-                                    style={{
-                                        fontSize: 12,
-                                        fontWeight: 600,
-                                        color: "hsl(var(--foreground))",
-                                        marginBottom: 6,
-                                        display: "block",
-                                    }}
-                                >
-                                    До
-                                </label>
-                                <input
-                                    type="date"
-                                    value={customEndDate}
-                                    min={customStartDate}
-                                    onChange={(e) =>
-                                        setCustomEndDate(e.target.value)
-                                    }
-                                    className="w-full px-3 py-2 rounded-md border border-border bg-card text-sm outline-none focus:border-foreground"
-                                />
-                            </div>
-                            {customStartDate && customEndDate && (
+                                    <rect
+                                        x="3"
+                                        y="4"
+                                        width="18"
+                                        height="18"
+                                        rx="2"
+                                        ry="2"
+                                    />
+                                    <line x1="16" y1="2" x2="16" y2="6" />
+                                    <line x1="8" y1="2" x2="8" y2="6" />
+                                    <line x1="3" y1="10" x2="21" y2="10" />
+                                </svg>
+                                {customStartDate} — {customEndDate}
                                 <button
                                     onClick={() => {
                                         setCustomStartDate("");
@@ -2001,19 +2050,18 @@ export default function Schedule() {
                                         setDateRangeFilter("all");
                                     }}
                                     style={{
-                                        padding: "8px 12px",
+                                        marginLeft: "auto",
                                         background: "none",
-                                        border: "1px solid hsl(var(--border))",
-                                        borderRadius: 8,
+                                        border: "none",
                                         cursor: "pointer",
                                         color: "hsl(var(--muted-foreground))",
+                                        fontSize: 14,
                                     }}
                                 >
                                     ✕
                                 </button>
-                            )}
-                        </div>
-                    )}
+                            </div>
+                        )}
 
                     {allLessonsListView.length === 0 ? (
                         <div
@@ -2614,14 +2662,18 @@ export default function Schedule() {
                 onClose={() => {
                     setModal(false);
                     setEditingLessonId(null);
+                    setShowCustomDuration(false);
+                    setCustomDurationInput("");
                 }}
-                title={editingLessonId ? "Редагувати заняття" : "Нове заняття"}
+                title={editingLessonId ? "Редагувати урок" : "Новий урок"}
                 footer={
                     <>
                         <button
                             onClick={() => {
                                 setModal(false);
                                 setEditingLessonId(null);
+                                setShowCustomDuration(false);
+                                setCustomDurationInput("");
                             }}
                             className="px-4 py-2 rounded-md bg-secondary text-secondary-foreground text-sm font-medium"
                         >
@@ -2629,101 +2681,264 @@ export default function Schedule() {
                         </button>
                         <button
                             onClick={handleAddLesson}
-                            className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-semibold hover:bg-mint-dark transition-all"
+                            className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-semibold hover:bg-mint-dark transition-all flex items-center gap-1.5"
                         >
+                            <svg
+                                width="13"
+                                height="13"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="3"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            >
+                                <polyline points="20 6 9 17 4 12" />
+                            </svg>
                             {editingLessonId ? "Зберегти" : "Додати"}
                         </button>
                     </>
                 }
             >
                 <div className="space-y-4">
+                    {/* Date + time header */}
                     {selectedCell && (
-                        <div className="bg-mint-50 rounded-md p-3 text-sm text-foreground">
-                            {DAYS[selectedCell.day]},{" "}
-                            {TIME_SLOTS[selectedCell.timeSlot]}
+                        <div
+                            style={{
+                                fontSize: 13,
+                                color: "hsl(var(--muted-foreground))",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                            }}
+                        >
+                            <span>
+                                {formDate
+                                    ? new Date(
+                                          formDate + "T12:00:00",
+                                      ).toLocaleDateString("uk", {
+                                          weekday: "long",
+                                      })
+                                    : DAYS[selectedCell.day]}
+                                , {TIME_SLOTS[selectedCell.timeSlot]}–
+                                {TIME_SLOTS[selectedCell.timeSlot + 1] ?? "..."}
+                            </span>
                         </div>
                     )}
-                    <div>
-                        <label className="block text-[13px] font-semibold text-muted-foreground mb-1.5">
-                            Дата
-                        </label>
-                        <input
-                            type="date"
-                            value={formDate}
-                            onChange={(e) => setFormDate(e.target.value)}
-                            className="w-full px-3 py-2.5 rounded-md border-[1.5px] border-border bg-card text-sm outline-none focus:border-foreground"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-[13px] font-semibold text-muted-foreground mb-1.5">
-                            Учень
-                        </label>
-                        <select
-                            value={formStudentId}
-                            onChange={(e) => setFormStudentId(e.target.value)}
-                            className="w-full px-3 py-2.5 rounded-md border-[1.5px] border-border bg-card text-sm outline-none"
-                            disabled={!!editingLessonId}
+
+                    {/* Date picker */}
+                    <CalendarPicker
+                        value={formDate}
+                        onChange={(d) => setFormDate(d)}
+                    />
+
+                    {/* Student — read-only card in edit mode, dropdown in new */}
+                    {editingLessonId ? (
+                        <div
+                            style={{
+                                padding: "12px 14px",
+                                background: "hsl(var(--mint-50))",
+                                border: "1px solid hsl(var(--mint-dark) / 0.15)",
+                                borderRadius: 8,
+                            }}
                         >
-                            {students.map((s) => (
-                                <option key={s.id} value={s.id}>
-                                    {s.name} — {s.subject}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                    <div>
-                        <label className="block text-[13px] font-semibold text-muted-foreground mb-1.5">
-                            Тривалість
-                        </label>
-                        <select
-                            value={formDuration}
-                            onChange={(e) =>
-                                setFormDuration(Number(e.target.value))
-                            }
-                            className="w-full px-3 py-2.5 rounded-md border-[1.5px] border-border bg-card text-sm outline-none"
-                        >
-                            <option value={30}>30 хв</option>
-                            <option value={45}>45 хв</option>
-                            <option value={60}>60 хв</option>
-                            <option value={90}>90 хв</option>
-                            <option value={120}>120 хв</option>
-                            <option value={150}>150 хв</option>
-                            <option value={180}>180 хв</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label className="block text-[13px] font-semibold text-muted-foreground mb-1.5">
-                            Нотатки
-                        </label>
-                        <input
-                            value={formNotes}
-                            onChange={(e) => setFormNotes(e.target.value)}
-                            placeholder="Необов'язково"
-                            className="w-full px-3 py-2.5 rounded-md border-[1.5px] border-border bg-card text-sm outline-none focus:border-foreground"
-                        />
-                    </div>
-                    {!editingLessonId && (
-                        <div>
-                            <label
+                            <div
                                 style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 8,
-                                    cursor: "pointer",
+                                    fontSize: 12,
+                                    color: "hsl(var(--muted-foreground))",
+                                    marginBottom: 4,
                                 }}
                             >
-                                <input
-                                    type="checkbox"
-                                    checked={showRecurring}
-                                    onChange={(e) =>
-                                        setShowRecurring(e.target.checked)
-                                    }
-                                />
-                                <span className="text-[13px] font-semibold text-muted-foreground">
-                                    Повторюваний урок
-                                </span>
-                            </label>
+                                Учень
+                            </div>
+                            <div
+                                style={{
+                                    fontSize: 15,
+                                    fontWeight: 600,
+                                    color: "hsl(var(--foreground))",
+                                }}
+                            >
+                                {(() => {
+                                    const raw = lessons.find(
+                                        (l) => l.id === editingLessonId,
+                                    );
+                                    if (!raw) return "—";
+                                    if (raw.is_group)
+                                        return (
+                                            groups.find(
+                                                (g) => g.id === raw.group_id,
+                                            )?.name || "Група"
+                                        );
+                                    return (
+                                        students.find(
+                                            (s) => s.id === raw.student_id,
+                                        )?.name || "Невідомий"
+                                    );
+                                })()}
+                            </div>
                         </div>
+                    ) : (
+                        <div>
+                            <label className="block text-[13px] font-semibold text-muted-foreground mb-1.5">
+                                Учень
+                            </label>
+                            <select
+                                value={formStudentId}
+                                onChange={(e) =>
+                                    setFormStudentId(e.target.value)
+                                }
+                                className="w-full px-3 py-2.5 rounded-md border-[1.5px] border-border bg-card text-sm outline-none"
+                            >
+                                {students.map((s) => (
+                                    <option key={s.id} value={s.id}>
+                                        {s.name} — {s.subject}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
+                    {/* Duration — button grid like old project */}
+                    <div>
+                        <label className="block text-[13px] font-semibold text-muted-foreground mb-2">
+                            Тривалість
+                        </label>
+                        <div
+                            style={{
+                                display: "grid",
+                                gridTemplateColumns: "repeat(5, 1fr)",
+                                gap: 8,
+                            }}
+                        >
+                            {[30, 45, 60, 90].map((d) => {
+                                const active =
+                                    formDuration === d && !showCustomDuration;
+                                return (
+                                    <button
+                                        key={d}
+                                        type="button"
+                                        onClick={() => {
+                                            setFormDuration(d);
+                                            setShowCustomDuration(false);
+                                            setCustomDurationInput("");
+                                        }}
+                                        style={{
+                                            padding: "11px 4px",
+                                            borderRadius: 8,
+                                            border: `2px solid ${active ? "hsl(var(--foreground))" : "hsl(var(--border))"}`,
+                                            background: active
+                                                ? "hsl(var(--foreground))"
+                                                : "hsl(var(--card))",
+                                            color: active
+                                                ? "hsl(var(--card))"
+                                                : "hsl(var(--muted-foreground))",
+                                            fontSize: 15,
+                                            fontWeight: 600,
+                                            cursor: "pointer",
+                                            transition: "all 0.15s",
+                                            textAlign: "center",
+                                        }}
+                                    >
+                                        {d}
+                                    </button>
+                                );
+                            })}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowCustomDuration(true);
+                                    setCustomDurationInput(
+                                        showCustomDuration
+                                            ? customDurationInput
+                                            : "",
+                                    );
+                                }}
+                                style={{
+                                    padding: "11px 4px",
+                                    borderRadius: 8,
+                                    border: `2px solid ${showCustomDuration ? "hsl(var(--foreground))" : "hsl(var(--border))"}`,
+                                    background: showCustomDuration
+                                        ? "hsl(var(--foreground))"
+                                        : "hsl(var(--card))",
+                                    color: showCustomDuration
+                                        ? "hsl(var(--card))"
+                                        : "hsl(var(--muted-foreground))",
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    cursor: "pointer",
+                                    transition: "all 0.15s",
+                                    textAlign: "center",
+                                }}
+                            >
+                                Інше
+                            </button>
+                        </div>
+                        {showCustomDuration && (
+                            <div style={{ marginTop: 10 }}>
+                                <input
+                                    type="number"
+                                    autoFocus
+                                    min={1}
+                                    max={300}
+                                    value={customDurationInput}
+                                    onChange={(e) => {
+                                        setCustomDurationInput(e.target.value);
+                                        const n = parseInt(e.target.value);
+                                        if (!isNaN(n) && n > 0)
+                                            setFormDuration(n);
+                                    }}
+                                    placeholder="Введіть тривалість у хвилинах..."
+                                    className="w-full px-3 py-2.5 rounded-md border-[1.5px] border-border bg-card text-sm outline-none focus:border-foreground"
+                                />
+                                <p
+                                    style={{
+                                        fontSize: 12,
+                                        color: "hsl(var(--muted-foreground))",
+                                        marginTop: 5,
+                                    }}
+                                >
+                                    Введіть тривалість від 1 до 300 хвилин
+                                </p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Notes — textarea like old project */}
+                    <div>
+                        <label className="block text-[13px] font-semibold text-muted-foreground mb-1.5">
+                            Нотатки (необов'язково)
+                        </label>
+                        <textarea
+                            value={formNotes}
+                            onChange={(e) => setFormNotes(e.target.value)}
+                            placeholder="Додайте нотатки до уроку..."
+                            rows={3}
+                            style={{ resize: "vertical" }}
+                            className="w-full px-3 py-2.5 rounded-md border-[1.5px] border-border bg-card text-sm outline-none focus:border-foreground"
+                        />
+                    </div>
+
+                    {/* Recurring — new lessons only */}
+                    {!editingLessonId && (
+                        <label
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                cursor: "pointer",
+                            }}
+                        >
+                            <input
+                                type="checkbox"
+                                checked={showRecurring}
+                                onChange={(e) =>
+                                    setShowRecurring(e.target.checked)
+                                }
+                            />
+                            <span className="text-[13px] font-semibold text-muted-foreground">
+                                Повторюваний урок
+                            </span>
+                        </label>
                     )}
                     {!editingLessonId && showRecurring && (
                         <div className="space-y-3 p-3 bg-mint-50 rounded-md">
@@ -2775,14 +2990,10 @@ export default function Schedule() {
                                 <label className="block text-[12px] font-semibold text-muted-foreground mb-1.5">
                                     Повторювати до
                                 </label>
-                                <input
-                                    type="date"
+                                <CalendarPicker
                                     value={recurringEndDate}
-                                    min={formDate}
-                                    onChange={(e) =>
-                                        setRecurringEndDate(e.target.value)
-                                    }
-                                    className="w-full px-3 py-2 rounded-md border border-border bg-card text-sm outline-none focus:border-foreground"
+                                    minDate={formDate}
+                                    onChange={(d) => setRecurringEndDate(d)}
                                 />
                             </div>
                         </div>
