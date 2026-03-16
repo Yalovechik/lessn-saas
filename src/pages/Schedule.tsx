@@ -20,6 +20,8 @@ import {
     CalendarPicker,
     CalendarRangePicker,
 } from "@/components/ui/calendar-picker";
+import { DataTable, CheckIcon, XIcon, DeleteIcon, type Column } from "@/components/ui/data-table";
+import { CustomSelect } from "@/components/ui/custom-select";
 
 const DEFAULT_SLOT_HOURS = [8, 9, 10, 11, 12, 13, 14, 15, 16];
 const SLOT_HOURS = Array.from({ length: 24 }, (_, i) => i); // full 0–23 for mapping
@@ -631,7 +633,166 @@ export default function Schedule() {
         customEndDate,
     ]);
 
-    // ── DnD ───────────────────────────────────────────────────────────────────
+    type LessonRow = (typeof allLessonsListView)[number];
+
+    const scheduleListColumns: Column<LessonRow>[] = useMemo(() => [
+        {
+            header: "Учень",
+            render: (l) => {
+                const student = students.find((s) => s.id === l.student_id);
+                const group = groups.find((g) => g.id === l.group_id);
+                const displayName = l.is_group
+                    ? group?.name || "Група"
+                    : student?.name || "Невідомий";
+                return (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{
+                            width: 28, height: 28, borderRadius: "50%",
+                            background: "hsl(var(--mint-50))", color: "hsl(var(--mint-dark))",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: 12, fontWeight: 700, flexShrink: 0,
+                        }}>
+                            {displayName.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                            <p style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--foreground))" }}>{displayName}</p>
+                            {l.is_group && <p style={{ fontSize: 11, color: "hsl(var(--muted-foreground))" }}>Група</p>}
+                        </div>
+                    </div>
+                );
+            },
+        },
+        {
+            header: "Дата",
+            render: (l) => <span style={{ fontSize: 13, color: "hsl(var(--foreground))" }}>{formatDate(l.date)}</span>,
+        },
+        {
+            header: "Час",
+            render: (l) => <span style={{ fontSize: 13, color: "hsl(var(--foreground))" }}>{formatTime(l.time)}</span>,
+        },
+        {
+            header: "Тривалість",
+            render: (l) => <span style={{ fontSize: 13, color: "hsl(var(--muted-foreground))" }}>{l.duration} хв</span>,
+        },
+        {
+            header: "Статус",
+            render: (l) => {
+                const statusColors: Record<string, { bg: string; color: string }> = {
+                    scheduled: { bg: "rgba(26,35,68,0.07)", color: "hsl(var(--foreground))" },
+                    completed: { bg: "hsl(var(--mint-light))", color: "hsl(var(--foreground))" },
+                    cancelled: { bg: "hsl(var(--coral-light))", color: "hsl(var(--coral-dark))" },
+                    rescheduled: { bg: "hsl(var(--orange-light))", color: "hsl(var(--orange-dark))" },
+                };
+                const sc = statusColors[l.status] || statusColors.scheduled;
+                return (
+                    <span style={{
+                        display: "inline-flex", alignItems: "center", gap: 5,
+                        padding: "3px 10px", borderRadius: 16, fontSize: 12, fontWeight: 600,
+                        background: sc.bg, color: sc.color,
+                    }}>
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: sc.color, flexShrink: 0 }} />
+                        {STATUS_LABELS[l.status as keyof typeof STATUS_LABELS]}
+                    </span>
+                );
+            },
+        },
+        {
+            header: "Дії",
+            render: (l) => (
+                <>
+                    {/* Desktop: inline buttons */}
+                    <div className="hidden sm:flex" style={{ gap: 6 }}>
+                        {l.status === "scheduled" && (
+                            <button
+                                onClick={() => updateLesson.mutate({ id: l.id, status: "completed" })}
+                                style={{
+                                    padding: "6px 12px", minWidth: 36, minHeight: 36,
+                                    background: "hsl(var(--mint-light))", color: "hsl(var(--foreground))",
+                                    border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600,
+                                    cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                                }}
+                                title="Виконано"
+                            >
+                                <CheckIcon />
+                            </button>
+                        )}
+                        {l.status === "scheduled" && (
+                            <button
+                                onClick={() => updateLesson.mutate({ id: l.id, status: "cancelled" })}
+                                style={{
+                                    padding: "6px 12px", minWidth: 36, minHeight: 36,
+                                    background: "hsl(var(--coral-light))", color: "hsl(var(--coral-dark))",
+                                    border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600,
+                                    cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                                }}
+                                title="Скасувати"
+                            >
+                                <XIcon />
+                            </button>
+                        )}
+                        <button
+                            onClick={() => setConfirmDeleteId(l.id)}
+                            style={{
+                                padding: "6px 12px", minWidth: 36, minHeight: 36,
+                                background: "hsl(var(--secondary))", color: "hsl(var(--muted-foreground))",
+                                border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600,
+                                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                            }}
+                            title="Видалити"
+                        >
+                            <DeleteIcon color="hsl(var(--muted-foreground))" />
+                        </button>
+                    </div>
+
+                    {/* Mobile: ⋯ dropdown */}
+                    <div className="flex sm:hidden" style={{ position: "relative" }}>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setOpenActionMenuId(openActionMenuId === l.id ? null : l.id); }}
+                            style={{
+                                width: 36, height: 36, borderRadius: 8,
+                                border: "1px solid hsl(var(--border))", background: "hsl(var(--card))",
+                                color: "hsl(var(--muted-foreground))", cursor: "pointer",
+                                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 700,
+                            }}
+                        >
+                            ⋯
+                        </button>
+                        {openActionMenuId === l.id && (
+                            <>
+                                <div style={{ position: "fixed", inset: 0, zIndex: 998 }} onClick={() => setOpenActionMenuId(null)} />
+                                <div
+                                    style={{
+                                        position: "absolute", right: 0, top: "calc(100% + 4px)",
+                                        background: "hsl(var(--card))", border: "1px solid hsl(var(--border))",
+                                        borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                                        zIndex: 999, minWidth: 160, overflow: "hidden",
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    {l.status === "scheduled" && (
+                                        <button onClick={() => { updateLesson.mutate({ id: l.id, status: "completed" }); setOpenActionMenuId(null); }}
+                                            style={{ width: "100%", padding: "12px 16px", background: "none", border: "none", textAlign: "left", fontSize: 14, fontWeight: 600, color: "hsl(var(--foreground))", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, borderBottom: "1px solid hsl(var(--border) / 0.5)" }}>
+                                            <span style={{ fontSize: 16 }}>✓</span> Виконано
+                                        </button>
+                                    )}
+                                    {l.status === "scheduled" && (
+                                        <button onClick={() => { updateLesson.mutate({ id: l.id, status: "cancelled" }); setOpenActionMenuId(null); }}
+                                            style={{ width: "100%", padding: "12px 16px", background: "none", border: "none", textAlign: "left", fontSize: 14, fontWeight: 600, color: "hsl(var(--coral-dark))", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, borderBottom: "1px solid hsl(var(--border) / 0.5)" }}>
+                                            <span style={{ fontSize: 16 }}>✕</span> Скасувати
+                                        </button>
+                                    )}
+                                    <button onClick={() => { setConfirmDeleteId(l.id); setOpenActionMenuId(null); }}
+                                        style={{ width: "100%", padding: "12px 16px", background: "none", border: "none", textAlign: "left", fontSize: 14, fontWeight: 600, color: "hsl(var(--muted-foreground))", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
+                                        <span style={{ fontSize: 16 }}>🗑</span> Видалити
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </>
+            ),
+        },
+    ], [students, groups, lessons, openActionMenuId, updateLesson]);
 
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -2039,555 +2200,11 @@ export default function Schedule() {
                             </p>
                         </div>
                     ) : (
-                        <div style={{ overflowX: "auto" }}>
-                            <table
-                                style={{
-                                    width: "100%",
-                                    borderCollapse: "collapse",
-                                }}
-                            >
-                                <thead>
-                                    <tr
-                                        style={{
-                                            borderBottom:
-                                                "1px solid hsl(var(--border))",
-                                            background:
-                                                "hsl(var(--secondary) / 0.5)",
-                                        }}
-                                    >
-                                        {[
-                                            "Учень",
-                                            "Дата",
-                                            "Час",
-                                            "Тривалість",
-                                            "Статус",
-                                            "Дії",
-                                        ].map((h) => (
-                                            <th
-                                                key={h}
-                                                style={{
-                                                    padding: "11px 14px",
-                                                    textAlign: "left",
-                                                    fontSize: 11,
-                                                    fontWeight: 700,
-                                                    color: "hsl(var(--muted-foreground))",
-                                                    textTransform: "uppercase",
-                                                    letterSpacing: "0.05em",
-                                                }}
-                                            >
-                                                {h}
-                                            </th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {allLessonsListView.map((l) => {
-                                        const student = students.find(
-                                            (s) => s.id === l.student_id,
-                                        );
-                                        const group = groups.find(
-                                            (g) => g.id === l.group_id,
-                                        );
-                                        const displayName = l.is_group
-                                            ? group?.name || "Група"
-                                            : student?.name || "Невідомий";
-                                        const statusColors: Record<
-                                            string,
-                                            { bg: string; color: string }
-                                        > = {
-                                            scheduled: {
-                                                bg: "rgba(26,35,68,0.07)",
-                                                color: "hsl(var(--foreground))",
-                                            },
-                                            completed: {
-                                                bg: "hsl(var(--mint-light))",
-                                                color: "hsl(var(--foreground))",
-                                            },
-                                            cancelled: {
-                                                bg: "hsl(var(--coral-light))",
-                                                color: "hsl(var(--coral-dark))",
-                                            },
-                                            rescheduled: {
-                                                bg: "hsl(var(--orange-light))",
-                                                color: "hsl(var(--orange-dark))",
-                                            },
-                                        };
-                                        const sc =
-                                            statusColors[l.status] ||
-                                            statusColors.scheduled;
-                                        return (
-                                            <tr
-                                                key={l.id}
-                                                style={{
-                                                    borderBottom:
-                                                        "1px solid hsl(var(--border) / 0.5)",
-                                                    transition:
-                                                        "background 0.15s",
-                                                }}
-                                                onMouseEnter={(e) =>
-                                                    (e.currentTarget.style.background =
-                                                        "hsl(var(--secondary) / 0.3)")
-                                                }
-                                                onMouseLeave={(e) =>
-                                                    (e.currentTarget.style.background =
-                                                        "transparent")
-                                                }
-                                            >
-                                                <td
-                                                    style={{
-                                                        padding: "11px 14px",
-                                                    }}
-                                                >
-                                                    <div
-                                                        style={{
-                                                            display: "flex",
-                                                            alignItems:
-                                                                "center",
-                                                            gap: 8,
-                                                        }}
-                                                    >
-                                                        <div
-                                                            style={{
-                                                                width: 28,
-                                                                height: 28,
-                                                                borderRadius:
-                                                                    "50%",
-                                                                background:
-                                                                    "hsl(var(--mint-50))",
-                                                                color: "hsl(var(--mint-dark))",
-                                                                display: "flex",
-                                                                alignItems:
-                                                                    "center",
-                                                                justifyContent:
-                                                                    "center",
-                                                                fontSize: 12,
-                                                                fontWeight: 700,
-                                                                flexShrink: 0,
-                                                            }}
-                                                        >
-                                                            {displayName
-                                                                .charAt(0)
-                                                                .toUpperCase()}
-                                                        </div>
-                                                        <div>
-                                                            <p
-                                                                style={{
-                                                                    fontSize: 13,
-                                                                    fontWeight: 600,
-                                                                    color: "hsl(var(--foreground))",
-                                                                }}
-                                                            >
-                                                                {displayName}
-                                                            </p>
-                                                            {l.is_group && (
-                                                                <p
-                                                                    style={{
-                                                                        fontSize: 11,
-                                                                        color: "hsl(var(--muted-foreground))",
-                                                                    }}
-                                                                >
-                                                                    Група
-                                                                </p>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td
-                                                    style={{
-                                                        padding: "11px 14px",
-                                                        fontSize: 13,
-                                                        color: "hsl(var(--foreground))",
-                                                    }}
-                                                >
-                                                    {formatDate(l.date)}
-                                                </td>
-                                                <td
-                                                    style={{
-                                                        padding: "11px 14px",
-                                                        fontSize: 13,
-                                                        color: "hsl(var(--foreground))",
-                                                    }}
-                                                >
-                                                    {formatTime(l.time)}
-                                                </td>
-                                                <td
-                                                    style={{
-                                                        padding: "11px 14px",
-                                                        fontSize: 13,
-                                                        color: "hsl(var(--muted-foreground))",
-                                                    }}
-                                                >
-                                                    {l.duration} хв
-                                                </td>
-                                                <td
-                                                    style={{
-                                                        padding: "11px 14px",
-                                                    }}
-                                                >
-                                                    <span
-                                                        style={{
-                                                            display:
-                                                                "inline-flex",
-                                                            alignItems:
-                                                                "center",
-                                                            gap: 5,
-                                                            padding: "3px 10px",
-                                                            borderRadius: 16,
-                                                            fontSize: 12,
-                                                            fontWeight: 600,
-                                                            background: sc.bg,
-                                                            color: sc.color,
-                                                        }}
-                                                    >
-                                                        <span
-                                                            style={{
-                                                                width: 6,
-                                                                height: 6,
-                                                                borderRadius:
-                                                                    "50%",
-                                                                background:
-                                                                    sc.color,
-                                                                flexShrink: 0,
-                                                            }}
-                                                        />
-                                                        {
-                                                            STATUS_LABELS[
-                                                                l.status as keyof typeof STATUS_LABELS
-                                                            ]
-                                                        }
-                                                    </span>
-                                                </td>
-                                                <td
-                                                    style={{
-                                                        padding: "11px 14px",
-                                                    }}
-                                                >
-                                                    {/* Desktop: inline buttons */}
-                                                    <div
-                                                        className="hidden sm:flex"
-                                                        style={{ gap: 6 }}
-                                                    >
-                                                        {l.status ===
-                                                            "scheduled" && (
-                                                            <button
-                                                                onClick={() =>
-                                                                    updateLesson.mutate(
-                                                                        {
-                                                                            id: l.id,
-                                                                            status: "completed",
-                                                                        },
-                                                                    )
-                                                                }
-                                                                style={{
-                                                                    padding:
-                                                                        "6px 12px",
-                                                                    minWidth: 36,
-                                                                    minHeight: 36,
-                                                                    background:
-                                                                        "hsl(var(--mint-light))",
-                                                                    color: "hsl(var(--foreground))",
-                                                                    border: "none",
-                                                                    borderRadius: 6,
-                                                                    fontSize: 13,
-                                                                    fontWeight: 600,
-                                                                    cursor: "pointer",
-                                                                    display:
-                                                                        "flex",
-                                                                    alignItems:
-                                                                        "center",
-                                                                    justifyContent:
-                                                                        "center",
-                                                                }}
-                                                                title="Виконано"
-                                                            >
-                                                                ✓
-                                                            </button>
-                                                        )}
-                                                        {l.status ===
-                                                            "scheduled" && (
-                                                            <button
-                                                                onClick={() =>
-                                                                    updateLesson.mutate(
-                                                                        {
-                                                                            id: l.id,
-                                                                            status: "cancelled",
-                                                                        },
-                                                                    )
-                                                                }
-                                                                style={{
-                                                                    padding:
-                                                                        "6px 12px",
-                                                                    minWidth: 36,
-                                                                    minHeight: 36,
-                                                                    background:
-                                                                        "hsl(var(--coral-light))",
-                                                                    color: "hsl(var(--coral-dark))",
-                                                                    border: "none",
-                                                                    borderRadius: 6,
-                                                                    fontSize: 13,
-                                                                    fontWeight: 600,
-                                                                    cursor: "pointer",
-                                                                    display:
-                                                                        "flex",
-                                                                    alignItems:
-                                                                        "center",
-                                                                    justifyContent:
-                                                                        "center",
-                                                                }}
-                                                                title="Скасувати"
-                                                            >
-                                                                ✕
-                                                            </button>
-                                                        )}
-                                                        <button
-                                                            onClick={() =>
-                                                                setConfirmDeleteId(
-                                                                    l.id,
-                                                                )
-                                                            }
-                                                            style={{
-                                                                padding:
-                                                                    "6px 12px",
-                                                                minWidth: 36,
-                                                                minHeight: 36,
-                                                                background:
-                                                                    "hsl(var(--secondary))",
-                                                                color: "hsl(var(--muted-foreground))",
-                                                                border: "none",
-                                                                borderRadius: 6,
-                                                                fontSize: 13,
-                                                                fontWeight: 600,
-                                                                cursor: "pointer",
-                                                                display: "flex",
-                                                                alignItems:
-                                                                    "center",
-                                                                justifyContent:
-                                                                    "center",
-                                                            }}
-                                                            title="Видалити"
-                                                        >
-                                                            🗑
-                                                        </button>
-                                                    </div>
-
-                                                    {/* Mobile: ⋯ dropdown */}
-                                                    <div
-                                                        className="flex sm:hidden"
-                                                        style={{
-                                                            position:
-                                                                "relative",
-                                                        }}
-                                                    >
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setOpenActionMenuId(
-                                                                    openActionMenuId ===
-                                                                        l.id
-                                                                        ? null
-                                                                        : l.id,
-                                                                );
-                                                            }}
-                                                            style={{
-                                                                width: 36,
-                                                                height: 36,
-                                                                borderRadius: 8,
-                                                                border: "1px solid hsl(var(--border))",
-                                                                background:
-                                                                    "hsl(var(--card))",
-                                                                color: "hsl(var(--muted-foreground))",
-                                                                cursor: "pointer",
-                                                                display: "flex",
-                                                                alignItems:
-                                                                    "center",
-                                                                justifyContent:
-                                                                    "center",
-                                                                fontSize: 18,
-                                                                fontWeight: 700,
-                                                            }}
-                                                        >
-                                                            ⋯
-                                                        </button>
-                                                        {openActionMenuId ===
-                                                            l.id && (
-                                                            <>
-                                                                <div
-                                                                    style={{
-                                                                        position:
-                                                                            "fixed",
-                                                                        inset: 0,
-                                                                        zIndex: 998,
-                                                                    }}
-                                                                    onClick={() =>
-                                                                        setOpenActionMenuId(
-                                                                            null,
-                                                                        )
-                                                                    }
-                                                                />
-                                                                <div
-                                                                    style={{
-                                                                        position:
-                                                                            "absolute",
-                                                                        right: 0,
-                                                                        top: "calc(100% + 4px)",
-                                                                        background:
-                                                                            "hsl(var(--card))",
-                                                                        border: "1px solid hsl(var(--border))",
-                                                                        borderRadius: 10,
-                                                                        boxShadow:
-                                                                            "0 8px 24px rgba(0,0,0,0.15)",
-                                                                        zIndex: 999,
-                                                                        minWidth: 160,
-                                                                        overflow:
-                                                                            "hidden",
-                                                                    }}
-                                                                    onClick={(
-                                                                        e,
-                                                                    ) =>
-                                                                        e.stopPropagation()
-                                                                    }
-                                                                >
-                                                                    {l.status ===
-                                                                        "scheduled" && (
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                updateLesson.mutate(
-                                                                                    {
-                                                                                        id: l.id,
-                                                                                        status: "completed",
-                                                                                    },
-                                                                                );
-                                                                                setOpenActionMenuId(
-                                                                                    null,
-                                                                                );
-                                                                            }}
-                                                                            style={{
-                                                                                width: "100%",
-                                                                                padding:
-                                                                                    "12px 16px",
-                                                                                background:
-                                                                                    "none",
-                                                                                border: "none",
-                                                                                textAlign:
-                                                                                    "left",
-                                                                                fontSize: 14,
-                                                                                fontWeight: 600,
-                                                                                color: "hsl(var(--foreground))",
-                                                                                cursor: "pointer",
-                                                                                display:
-                                                                                    "flex",
-                                                                                alignItems:
-                                                                                    "center",
-                                                                                gap: 10,
-                                                                                borderBottom:
-                                                                                    "1px solid hsl(var(--border) / 0.5)",
-                                                                            }}
-                                                                        >
-                                                                            <span
-                                                                                style={{
-                                                                                    fontSize: 16,
-                                                                                }}
-                                                                            >
-                                                                                ✓
-                                                                            </span>{" "}
-                                                                            Виконано
-                                                                        </button>
-                                                                    )}
-                                                                    {l.status ===
-                                                                        "scheduled" && (
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                updateLesson.mutate(
-                                                                                    {
-                                                                                        id: l.id,
-                                                                                        status: "cancelled",
-                                                                                    },
-                                                                                );
-                                                                                setOpenActionMenuId(
-                                                                                    null,
-                                                                                );
-                                                                            }}
-                                                                            style={{
-                                                                                width: "100%",
-                                                                                padding:
-                                                                                    "12px 16px",
-                                                                                background:
-                                                                                    "none",
-                                                                                border: "none",
-                                                                                textAlign:
-                                                                                    "left",
-                                                                                fontSize: 14,
-                                                                                fontWeight: 600,
-                                                                                color: "hsl(var(--coral-dark))",
-                                                                                cursor: "pointer",
-                                                                                display:
-                                                                                    "flex",
-                                                                                alignItems:
-                                                                                    "center",
-                                                                                gap: 10,
-                                                                                borderBottom:
-                                                                                    "1px solid hsl(var(--border) / 0.5)",
-                                                                            }}
-                                                                        >
-                                                                            <span
-                                                                                style={{
-                                                                                    fontSize: 16,
-                                                                                }}
-                                                                            >
-                                                                                ✕
-                                                                            </span>{" "}
-                                                                            Скасувати
-                                                                        </button>
-                                                                    )}
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            setConfirmDeleteId(
-                                                                                l.id,
-                                                                            );
-                                                                            setOpenActionMenuId(
-                                                                                null,
-                                                                            );
-                                                                        }}
-                                                                        style={{
-                                                                            width: "100%",
-                                                                            padding:
-                                                                                "12px 16px",
-                                                                            background:
-                                                                                "none",
-                                                                            border: "none",
-                                                                            textAlign:
-                                                                                "left",
-                                                                            fontSize: 14,
-                                                                            fontWeight: 600,
-                                                                            color: "hsl(var(--muted-foreground))",
-                                                                            cursor: "pointer",
-                                                                            display:
-                                                                                "flex",
-                                                                            alignItems:
-                                                                                "center",
-                                                                            gap: 10,
-                                                                        }}
-                                                                    >
-                                                                        <span
-                                                                            style={{
-                                                                                fontSize: 16,
-                                                                            }}
-                                                                        >
-                                                                            🗑
-                                                                        </span>{" "}
-                                                                        Видалити
-                                                                    </button>
-                                                                </div>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
+                        <DataTable
+                            columns={scheduleListColumns}
+                            data={allLessonsListView}
+                            keyExtractor={(l) => l.id}
+                        />
                     )}
                 </div>
             )}
@@ -2764,25 +2381,16 @@ export default function Schedule() {
                             <label className="block text-[13px] font-semibold text-muted-foreground mb-1.5">
                                 {formIsGroup ? "Група" : "Учень"}
                             </label>
-                            <select
+                            <CustomSelect
                                 value={formStudentId}
-                                onChange={(e) =>
-                                    setFormStudentId(e.target.value)
+                                onChange={(v) => setFormStudentId(v)}
+                                searchable
+                                options={
+                                    formIsGroup
+                                        ? groups.map((g) => ({ value: g.id, label: g.name }))
+                                        : students.map((s) => ({ value: s.id, label: `${s.name} — ${s.subject}` }))
                                 }
-                                className="w-full px-3 py-2.5 rounded-md border-[1.5px] border-border bg-card text-sm outline-none"
-                            >
-                                {formIsGroup
-                                    ? groups.map((g) => (
-                                          <option key={g.id} value={g.id}>
-                                              {g.name}
-                                          </option>
-                                      ))
-                                    : students.map((s) => (
-                                          <option key={s.id} value={s.id}>
-                                              {s.name} — {s.subject}
-                                          </option>
-                                      ))}
-                            </select>
+                            />
                         </div>
                     )}
 

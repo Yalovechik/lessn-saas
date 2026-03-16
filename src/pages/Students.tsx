@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppData } from "@/hooks/useAppData";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,6 +15,8 @@ import { Modal } from "@/components/lessn/Modal";
 import { Toast } from "@/components/lessn/Toast";
 import { useToast } from "@/hooks/useToast";
 import { Plus } from "lucide-react";
+import { DataTable, EditIcon, DeleteIcon, CalendarIcon, type Column } from "@/components/ui/data-table";
+import { CustomSelect } from "@/components/ui/custom-select";
 
 export default function Students() {
     const {
@@ -236,16 +238,136 @@ export default function Students() {
         };
     };
 
-    const thStyle: React.CSSProperties = {
-        textAlign: "left",
-        padding: "11px 16px",
-        fontSize: 11,
-        fontWeight: 600,
-        color: "hsl(var(--muted-foreground))",
-        textTransform: "uppercase",
-        background: "hsl(var(--secondary) / 0.5)",
-        borderBottom: "1px solid hsl(var(--border))",
-    };
+    type StudentRow = (typeof students)[number];
+
+    const studentColumns: Column<StudentRow>[] = useMemo(() => [
+        {
+            header: "Учень",
+            render: (s) => {
+                const lc = studentLessonCounts(s.id);
+                return (
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <Avatar name={s.name} size={32} />
+                        <div>
+                            <div style={{ fontWeight: 600, color: "hsl(var(--foreground))" }}>
+                                {s.name}
+                            </div>
+                            <div style={{ fontSize: 11, color: "hsl(var(--muted-foreground))" }}>
+                                {lc.total} {pluralLessons(lc.total)}
+                                {lc.upcoming > 0 && ` · ${lc.upcoming} заплановано`}
+                            </div>
+                        </div>
+                    </div>
+                );
+            },
+        },
+        {
+            header: "Група",
+            render: (s) => {
+                const studentGroup = groups.find((g) => g.student_ids?.includes(s.id));
+                return studentGroup ? (
+                    <div
+                        style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            padding: "4px 10px",
+                            borderRadius: 16,
+                            background: "hsl(var(--mint-50))",
+                            border: "1px solid hsl(var(--mint-dark) / 0.15)",
+                        }}
+                    >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--foreground))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                            <circle cx="9" cy="7" r="4" />
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                        </svg>
+                        <span style={{ fontSize: 13, fontWeight: 500 }}>{studentGroup.name}</span>
+                    </div>
+                ) : (
+                    <span style={{ fontSize: 13, color: "hsl(var(--muted-foreground))" }}>Без групи</span>
+                );
+            },
+        },
+        {
+            header: "Ціна/Урок",
+            render: (s) => (
+                <span style={{ fontWeight: 600 }}>{formatCurrency(s.price_per_lesson)}</span>
+            ),
+        },
+        {
+            header: "Оплачено",
+            render: (s) => formatCurrency(stats(s.id).totalPaid),
+        },
+        {
+            header: "Проведено",
+            render: (s) => <span style={{ fontWeight: 600 }}>{stats(s.id).done}</span>,
+        },
+        {
+            header: "Залишок",
+            render: (s) => {
+                const st = stats(s.id);
+                return (
+                    <span
+                        style={{
+                            display: "inline-block",
+                            padding: "3px 12px",
+                            borderRadius: 20,
+                            fontSize: 13,
+                            fontWeight: 700,
+                            background:
+                                st.remaining <= 0
+                                    ? "hsl(var(--coral-light))"
+                                    : st.remaining <= 2
+                                      ? "hsl(var(--orange-light))"
+                                      : "hsl(var(--mint-light))",
+                            color:
+                                st.remaining <= 0
+                                    ? "hsl(var(--coral-dark))"
+                                    : st.remaining <= 2
+                                      ? "hsl(var(--orange-dark))"
+                                      : "hsl(var(--foreground))",
+                        }}
+                    >
+                        {st.remaining}
+                    </span>
+                );
+            },
+        },
+        {
+            header: "Дії",
+            width: 140,
+            render: (s) => (
+                <div
+                    style={{ display: "flex", gap: 4, alignItems: "center" }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <button
+                        onClick={() => openLessonModal(s.id)}
+                        title="Запланувати урок"
+                        style={{ padding: "6px 10px", borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", color: "hsl(var(--foreground))", display: "flex", alignItems: "center" }}
+                    >
+                        <CalendarIcon />
+                    </button>
+                    <button
+                        onClick={() => openEdit(s)}
+                        title="Редагувати"
+                        style={{ padding: 6, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", color: "hsl(var(--foreground))", display: "flex", alignItems: "center" }}
+                    >
+                        <EditIcon />
+                    </button>
+                    <button
+                        onClick={() => setDeleteConfirmId(s.id)}
+                        title="Видалити"
+                        style={{ padding: 6, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", color: "hsl(var(--coral))", display: "flex", alignItems: "center" }}
+                    >
+                        <DeleteIcon color="hsl(var(--coral))" />
+                    </button>
+                </div>
+            ),
+        },
+    ], [groups, lessons, payments, students]);
 
     return (
         <>
@@ -344,53 +466,18 @@ export default function Students() {
                     >
                         Фільтр:
                     </span>
-                    <select
+                    <CustomSelect
                         value={groupFilter}
-                        onChange={(e) => {
-                            setGroupFilter(e.target.value);
-                            setCurrentPage(1);
-                        }}
-                        style={{
-                            padding: "8px 32px 8px 12px",
-                            borderRadius: 8,
-                            fontSize: 14,
-                            fontWeight: 500,
-                            cursor: "pointer",
-                            border: "1.5px solid hsl(var(--border))",
-                            background: "hsl(var(--card))",
-                            color: "hsl(var(--foreground))",
-                            appearance: "none",
-                            backgroundImage: `url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.5' stroke-linecap='round' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
-                            backgroundRepeat: "no-repeat",
-                            backgroundPosition: "right 10px center",
-                            minWidth: 200,
-                        }}
-                    >
-                        <option value="all">
-                            Всі учні ({students.length})
-                        </option>
-                        <option disabled>────────────</option>
-                        <option value="no-group">
-                            Без групи (
-                            {
-                                students.filter(
-                                    (s) =>
-                                        !groups.some((g) =>
-                                            g.student_ids?.includes(s.id),
-                                        ),
-                                ).length
-                            }
-                            )
-                        </option>
-                        {groups.length > 0 && (
-                            <option disabled>────────────</option>
-                        )}
-                        {groups.map((g) => (
-                            <option key={g.id} value={g.id}>
-                                {g.name} ({g.student_ids?.length || 0})
-                            </option>
-                        ))}
-                    </select>
+                        onChange={(v) => { setGroupFilter(v); setCurrentPage(1); }}
+                        options={[
+                            { value: "all", label: `Всі учні (${students.length})` },
+                            { value: "no-group", label: `Без групи (${students.filter((s) => !groups.some((g) => g.student_ids?.includes(s.id))).length})` },
+                            ...groups.map((g) => ({
+                                value: g.id,
+                                label: `${g.name} (${g.student_ids?.length || 0})`,
+                            })),
+                        ]}
+                    />
                 </div>
 
                 {students.length === 0 ? (
@@ -416,522 +503,18 @@ export default function Students() {
                         />
                     </div>
                 ) : (
-                    <div
-                        style={{
-                            background: "hsl(var(--card))",
-                            borderRadius: 12,
-                            border: "1px solid hsl(var(--border))",
-                            boxShadow: "0 1px 3px rgba(15,23,42,.06)",
-                            overflow: "hidden",
+                    <DataTable
+                        columns={studentColumns}
+                        data={paginatedStudents}
+                        keyExtractor={(s) => s.id}
+                        onRowClick={(s) => navigate(`/students/${s.id}`)}
+                        pagination={{
+                            page: currentPage,
+                            setPage: setCurrentPage,
+                            pageSize: studentsPerPage,
+                            total: filteredStudents.length,
                         }}
-                    >
-                        <div style={{ overflowX: "auto" }}>
-                            <table
-                                style={{
-                                    width: "100%",
-                                    borderCollapse: "collapse",
-                                }}
-                            >
-                                <thead>
-                                    <tr>
-                                        <th style={thStyle}>Учень</th>
-                                        <th style={thStyle}>Група</th>
-                                        <th style={thStyle}>Ціна/Урок</th>
-                                        <th style={thStyle}>Оплачено</th>
-                                        <th style={thStyle}>Проведено</th>
-                                        <th style={thStyle}>Залишок</th>
-                                        <th style={{ ...thStyle, width: 140 }}>
-                                            Дії
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {paginatedStudents.map((s) => {
-                                        const st = stats(s.id);
-                                        const lc = studentLessonCounts(s.id);
-                                        const studentGroup = groups.find((g) =>
-                                            g.student_ids?.includes(s.id),
-                                        );
-                                        return (
-                                            <tr
-                                                key={s.id}
-                                                style={{
-                                                    borderBottom:
-                                                        "1px solid hsl(var(--border) / 0.5)",
-                                                    cursor: "pointer",
-                                                    transition:
-                                                        "background .15s",
-                                                }}
-                                                onMouseEnter={(e) =>
-                                                    (e.currentTarget.style.background =
-                                                        "hsl(var(--secondary) / 0.3)")
-                                                }
-                                                onMouseLeave={(e) =>
-                                                    (e.currentTarget.style.background =
-                                                        "transparent")
-                                                }
-                                                onClick={() =>
-                                                    navigate(
-                                                        `/students/${s.id}`,
-                                                    )
-                                                }
-                                            >
-                                                <td
-                                                    style={{
-                                                        padding: "14px 16px",
-                                                    }}
-                                                >
-                                                    <div
-                                                        style={{
-                                                            display: "flex",
-                                                            alignItems:
-                                                                "center",
-                                                            gap: 10,
-                                                        }}
-                                                    >
-                                                        <Avatar
-                                                            name={s.name}
-                                                            size={32}
-                                                        />
-                                                        <div>
-                                                            <div
-                                                                style={{
-                                                                    fontWeight: 600,
-                                                                    color: "hsl(var(--foreground))",
-                                                                }}
-                                                            >
-                                                                {s.name}
-                                                            </div>
-                                                            <div
-                                                                style={{
-                                                                    fontSize: 11,
-                                                                    color: "hsl(var(--muted-foreground))",
-                                                                }}
-                                                            >
-                                                                {lc.total}{" "}
-                                                                {pluralLessons(
-                                                                    lc.total,
-                                                                )}
-                                                                {lc.upcoming >
-                                                                    0 &&
-                                                                    ` · ${lc.upcoming} заплановано`}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td
-                                                    style={{
-                                                        padding: "14px 16px",
-                                                    }}
-                                                >
-                                                    {studentGroup ? (
-                                                        <div
-                                                            style={{
-                                                                display:
-                                                                    "inline-flex",
-                                                                alignItems:
-                                                                    "center",
-                                                                gap: 6,
-                                                                padding:
-                                                                    "4px 10px",
-                                                                borderRadius: 16,
-                                                                background:
-                                                                    "hsl(var(--mint-50))",
-                                                                border: "1px solid hsl(var(--mint-dark) / 0.15)",
-                                                            }}
-                                                        >
-                                                            <svg
-                                                                width="12"
-                                                                height="12"
-                                                                viewBox="0 0 24 24"
-                                                                fill="none"
-                                                                stroke="hsl(var(--foreground))"
-                                                                strokeWidth="2"
-                                                                strokeLinecap="round"
-                                                                strokeLinejoin="round"
-                                                            >
-                                                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                                                                <circle
-                                                                    cx="9"
-                                                                    cy="7"
-                                                                    r="4"
-                                                                />
-                                                                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                                                                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                                                            </svg>
-                                                            <span
-                                                                style={{
-                                                                    fontSize: 13,
-                                                                    fontWeight: 500,
-                                                                }}
-                                                            >
-                                                                {
-                                                                    studentGroup.name
-                                                                }
-                                                            </span>
-                                                        </div>
-                                                    ) : (
-                                                        <span
-                                                            style={{
-                                                                fontSize: 13,
-                                                                color: "hsl(var(--muted-foreground))",
-                                                            }}
-                                                        >
-                                                            Без групи
-                                                        </span>
-                                                    )}
-                                                </td>
-                                                <td
-                                                    style={{
-                                                        padding: "14px 16px",
-                                                        fontWeight: 600,
-                                                    }}
-                                                >
-                                                    {formatCurrency(
-                                                        s.price_per_lesson,
-                                                    )}
-                                                </td>
-                                                <td
-                                                    style={{
-                                                        padding: "14px 16px",
-                                                    }}
-                                                >
-                                                    {formatCurrency(
-                                                        st.totalPaid,
-                                                    )}
-                                                </td>
-                                                <td
-                                                    style={{
-                                                        padding: "14px 16px",
-                                                        fontWeight: 600,
-                                                    }}
-                                                >
-                                                    {st.done}
-                                                </td>
-                                                <td
-                                                    style={{
-                                                        padding: "14px 16px",
-                                                    }}
-                                                >
-                                                    <span
-                                                        style={{
-                                                            display:
-                                                                "inline-block",
-                                                            padding: "3px 12px",
-                                                            borderRadius: 20,
-                                                            fontSize: 13,
-                                                            fontWeight: 700,
-                                                            background:
-                                                                st.remaining <=
-                                                                0
-                                                                    ? "hsl(var(--coral-light))"
-                                                                    : st.remaining <=
-                                                                        2
-                                                                      ? "hsl(var(--orange-light))"
-                                                                      : "hsl(var(--mint-light))",
-                                                            color:
-                                                                st.remaining <=
-                                                                0
-                                                                    ? "hsl(var(--coral-dark))"
-                                                                    : st.remaining <=
-                                                                        2
-                                                                      ? "hsl(var(--orange-dark))"
-                                                                      : "hsl(var(--foreground))",
-                                                        }}
-                                                    >
-                                                        {st.remaining}
-                                                    </span>
-                                                </td>
-                                                <td
-                                                    style={{
-                                                        padding: "14px 16px",
-                                                    }}
-                                                    onClick={(e) =>
-                                                        e.stopPropagation()
-                                                    }
-                                                >
-                                                    <div
-                                                        style={{
-                                                            display: "flex",
-                                                            gap: 4,
-                                                            alignItems:
-                                                                "center",
-                                                        }}
-                                                    >
-                                                        <button
-                                                            onClick={() =>
-                                                                openLessonModal(
-                                                                    s.id,
-                                                                )
-                                                            }
-                                                            title="Запланувати урок"
-                                                            style={{
-                                                                padding:
-                                                                    "6px 10px",
-                                                                borderRadius: 6,
-                                                                border: "none",
-                                                                background:
-                                                                    "transparent",
-                                                                cursor: "pointer",
-                                                                color: "hsl(var(--foreground))",
-                                                                display: "flex",
-                                                                alignItems:
-                                                                    "center",
-                                                            }}
-                                                        >
-                                                            <svg
-                                                                width="14"
-                                                                height="14"
-                                                                viewBox="0 0 24 24"
-                                                                fill="none"
-                                                                stroke="currentColor"
-                                                                strokeWidth="2"
-                                                                strokeLinecap="round"
-                                                                strokeLinejoin="round"
-                                                            >
-                                                                <rect
-                                                                    x="3"
-                                                                    y="4"
-                                                                    width="18"
-                                                                    height="18"
-                                                                    rx="2"
-                                                                    ry="2"
-                                                                />
-                                                                <line
-                                                                    x1="16"
-                                                                    y1="2"
-                                                                    x2="16"
-                                                                    y2="6"
-                                                                />
-                                                                <line
-                                                                    x1="8"
-                                                                    y1="2"
-                                                                    x2="8"
-                                                                    y2="6"
-                                                                />
-                                                                <line
-                                                                    x1="3"
-                                                                    y1="10"
-                                                                    x2="21"
-                                                                    y2="10"
-                                                                />
-                                                            </svg>
-                                                        </button>
-                                                        <button
-                                                            onClick={() =>
-                                                                openEdit(s)
-                                                            }
-                                                            title="Редагувати"
-                                                            style={{
-                                                                padding: "6px",
-                                                                borderRadius: 6,
-                                                                border: "none",
-                                                                background:
-                                                                    "transparent",
-                                                                cursor: "pointer",
-                                                                color: "hsl(var(--foreground))",
-                                                                display: "flex",
-                                                                alignItems:
-                                                                    "center",
-                                                            }}
-                                                        >
-                                                            <svg
-                                                                width="14"
-                                                                height="14"
-                                                                viewBox="0 0 24 24"
-                                                                fill="none"
-                                                                stroke="currentColor"
-                                                                strokeWidth="2"
-                                                                strokeLinecap="round"
-                                                                strokeLinejoin="round"
-                                                            >
-                                                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                                                            </svg>
-                                                        </button>
-                                                        <button
-                                                            onClick={() =>
-                                                                setDeleteConfirmId(
-                                                                    s.id,
-                                                                )
-                                                            }
-                                                            title="Видалити"
-                                                            style={{
-                                                                padding: "6px",
-                                                                borderRadius: 6,
-                                                                border: "none",
-                                                                background:
-                                                                    "transparent",
-                                                                cursor: "pointer",
-                                                                color: "hsl(var(--coral))",
-                                                                display: "flex",
-                                                                alignItems:
-                                                                    "center",
-                                                            }}
-                                                        >
-                                                            <svg
-                                                                width="14"
-                                                                height="14"
-                                                                viewBox="0 0 24 24"
-                                                                fill="none"
-                                                                stroke="currentColor"
-                                                                strokeWidth="2"
-                                                                strokeLinecap="round"
-                                                                strokeLinejoin="round"
-                                                            >
-                                                                <polyline points="3 6 5 6 21 6" />
-                                                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                                            </svg>
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {totalPages > 1 && (
-                            <div
-                                style={{
-                                    padding: "16px 20px",
-                                    borderTop: "1px solid hsl(var(--border))",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                }}
-                            >
-                                <div
-                                    style={{
-                                        fontSize: 13,
-                                        color: "hsl(var(--muted-foreground))",
-                                    }}
-                                >
-                                    Показано {startIndex + 1}–
-                                    {Math.min(
-                                        startIndex + studentsPerPage,
-                                        filteredStudents.length,
-                                    )}{" "}
-                                    з {filteredStudents.length}
-                                </div>
-                                <div style={{ display: "flex", gap: 4 }}>
-                                    <button
-                                        onClick={() =>
-                                            setCurrentPage((p) =>
-                                                Math.max(1, p - 1),
-                                            )
-                                        }
-                                        disabled={currentPage === 1}
-                                        style={{
-                                            padding: "6px 12px",
-                                            borderRadius: 6,
-                                            border: "none",
-                                            background: "transparent",
-                                            cursor:
-                                                currentPage === 1
-                                                    ? "not-allowed"
-                                                    : "pointer",
-                                            opacity:
-                                                currentPage === 1 ? 0.4 : 1,
-                                            fontSize: 13,
-                                            fontWeight: 600,
-                                            color: "hsl(var(--foreground))",
-                                            display: "flex",
-                                            alignItems: "center",
-                                            gap: 4,
-                                        }}
-                                    >
-                                        <svg
-                                            width="14"
-                                            height="14"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            strokeWidth="2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                        >
-                                            <polyline points="15 18 9 12 15 6" />
-                                        </svg>{" "}
-                                        Назад
-                                    </button>
-                                    {Array.from(
-                                        { length: totalPages },
-                                        (_, i) => (
-                                            <button
-                                                key={i}
-                                                onClick={() =>
-                                                    setCurrentPage(i + 1)
-                                                }
-                                                style={{
-                                                    padding: "6px 12px",
-                                                    borderRadius: 6,
-                                                    fontSize: 13,
-                                                    fontWeight: 600,
-                                                    cursor: "pointer",
-                                                    border: "none",
-                                                    background:
-                                                        currentPage === i + 1
-                                                            ? "hsl(var(--foreground))"
-                                                            : "transparent",
-                                                    color:
-                                                        currentPage === i + 1
-                                                            ? "hsl(var(--card))"
-                                                            : "hsl(var(--muted-foreground))",
-                                                    minWidth: 36,
-                                                }}
-                                            >
-                                                {i + 1}
-                                            </button>
-                                        ),
-                                    )}
-                                    <button
-                                        onClick={() =>
-                                            setCurrentPage((p) =>
-                                                Math.min(totalPages, p + 1),
-                                            )
-                                        }
-                                        disabled={currentPage === totalPages}
-                                        style={{
-                                            padding: "6px 12px",
-                                            borderRadius: 6,
-                                            border: "none",
-                                            background: "transparent",
-                                            cursor:
-                                                currentPage === totalPages
-                                                    ? "not-allowed"
-                                                    : "pointer",
-                                            opacity:
-                                                currentPage === totalPages
-                                                    ? 0.4
-                                                    : 1,
-                                            fontSize: 13,
-                                            fontWeight: 600,
-                                            color: "hsl(var(--foreground))",
-                                            display: "flex",
-                                            alignItems: "center",
-                                            gap: 4,
-                                        }}
-                                    >
-                                        Вперед{" "}
-                                        <svg
-                                            width="14"
-                                            height="14"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            strokeWidth="2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                        >
-                                            <polyline points="9 18 15 12 9 6" />
-                                        </svg>
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                    />
                 )}
             </div>
 
@@ -1181,22 +764,15 @@ export default function Students() {
                         <label className="block text-[13px] font-semibold text-muted-foreground mb-1.5">
                             Учень
                         </label>
-                        <select
-                            className="w-full px-3 py-2.5 rounded-md border-[1.5px] border-border bg-card text-sm outline-none"
+                        <CustomSelect
                             value={lessonForm.studentId}
-                            onChange={(e) =>
-                                setLessonForm({
-                                    ...lessonForm,
-                                    studentId: e.target.value,
-                                })
-                            }
-                        >
-                            {students.map((s) => (
-                                <option key={s.id} value={s.id}>
-                                    {s.name}
-                                </option>
-                            ))}
-                        </select>
+                            onChange={(v) => setLessonForm({ ...lessonForm, studentId: v })}
+                            searchable
+                            options={students.map((s) => ({
+                                value: s.id,
+                                label: s.name,
+                            }))}
+                        />
                     </div>
                     <div>
                         <label className="block text-[13px] font-semibold text-muted-foreground mb-1.5">
