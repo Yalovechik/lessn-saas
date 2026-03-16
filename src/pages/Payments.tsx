@@ -14,6 +14,9 @@ import { Plus } from "lucide-react";
 import { DataTable, EditIcon, DeleteIcon, type Column } from "@/components/ui/data-table";
 import { CustomSelect } from "@/components/ui/custom-select";
 
+type DateRangeFilter = "all" | "today" | "week" | "month";
+type SortOption = "date-desc" | "date-asc" | "amount-desc" | "amount-asc";
+
 export default function Payments() {
     const { students, payments, addPayment, updatePayment, deletePayment } =
         useAppData();
@@ -29,6 +32,9 @@ export default function Payments() {
     });
     const [currentPage, setCurrentPage] = useState(1);
     const paymentsPerPage = 10;
+    const [studentFilter, setStudentFilter] = useState("all");
+    const [dateRangeFilter, setDateRangeFilter] = useState<DateRangeFilter>("all");
+    const [sortBy, setSortBy] = useState<SortOption>("date-desc");
 
     const openNew = () => {
         setForm({
@@ -83,10 +89,52 @@ export default function Payments() {
         setDeleteConfirmId(null);
     };
 
-    const sorted = [...payments].sort((a, b) => b.date.localeCompare(a.date));
-    const totalPages = Math.ceil(sorted.length / paymentsPerPage);
+    const filteredAndSorted = useMemo(() => {
+        let list = [...payments];
+
+        if (studentFilter !== "all") {
+            list = list.filter((p) => p.student_id === studentFilter);
+        }
+
+        if (dateRangeFilter !== "all") {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const ts = todayStr();
+            if (dateRangeFilter === "today") {
+                list = list.filter((p) => p.date === ts);
+            } else if (dateRangeFilter === "week") {
+                const dow = today.getDay() === 0 ? 6 : today.getDay() - 1;
+                const ws = new Date(today);
+                ws.setDate(today.getDate() - dow);
+                const we = new Date(ws);
+                we.setDate(ws.getDate() + 6);
+                list = list.filter((p) => {
+                    const d = new Date(p.date);
+                    return d >= ws && d <= we;
+                });
+            } else if (dateRangeFilter === "month") {
+                const ms = new Date(today.getFullYear(), today.getMonth(), 1);
+                const me = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                list = list.filter((p) => {
+                    const d = new Date(p.date);
+                    return d >= ms && d <= me;
+                });
+            }
+        }
+
+        list.sort((a, b) => {
+            if (sortBy === "date-desc") return b.date.localeCompare(a.date);
+            if (sortBy === "date-asc") return a.date.localeCompare(b.date);
+            if (sortBy === "amount-desc") return b.amount - a.amount;
+            if (sortBy === "amount-asc") return a.amount - b.amount;
+            return 0;
+        });
+
+        return list;
+    }, [payments, studentFilter, dateRangeFilter, sortBy]);
+
     const startIndex = (currentPage - 1) * paymentsPerPage;
-    const paginatedPayments = sorted.slice(
+    const paginatedPayments = filteredAndSorted.slice(
         startIndex,
         startIndex + paymentsPerPage,
     );
@@ -223,6 +271,8 @@ export default function Payments() {
                     >
                         {payments.length} {pluralPayments(payments.length)}{" "}
                         записано
+                        {(studentFilter !== "all" || dateRangeFilter !== "all") &&
+                            ` · ${filteredAndSorted.length} показано`}
                     </p>
                 </div>
                 <button
@@ -245,6 +295,47 @@ export default function Payments() {
                 </button>
             </div>
 
+            {/* Filters */}
+            {students.length > 0 && payments.length > 0 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <CustomSelect
+                        value={studentFilter}
+                        onChange={(v) => { setStudentFilter(v); setCurrentPage(1); }}
+                        options={[
+                            { value: "all", label: `Всі учні (${payments.length})` },
+                            ...students
+                                .filter((s) => payments.some((p) => p.student_id === s.id))
+                                .map((s) => ({
+                                    value: s.id,
+                                    label: `${s.name} (${payments.filter((p) => p.student_id === s.id).length})`,
+                                })),
+                        ]}
+                    />
+                    {(["all", "today", "week", "month"] as const).map((r) => {
+                        const labels = { all: "Весь час", today: "Сьогодні", week: "Тиждень", month: "Місяць" };
+                        const active = dateRangeFilter === r;
+                        return (
+                            <button
+                                key={r}
+                                onClick={() => { setDateRangeFilter(r); setCurrentPage(1); }}
+                                style={{
+                                    padding: "6px 14px",
+                                    borderRadius: 20,
+                                                    border: `1.5px solid ${active ? "hsl(var(--mint-dark) / 0.4)" : "hsl(var(--border))"}`,
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    cursor: "pointer",
+                                    background: active ? "hsl(var(--mint-50))" : "hsl(var(--card))",
+                                    color: active ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
+                                }}
+                            >
+                                {labels[r]}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+
             {students.length === 0 ? (
                 <div
                     style={{
@@ -259,7 +350,7 @@ export default function Payments() {
                         desc="Для запису оплат потрібні учні"
                     />
                 </div>
-            ) : sorted.length === 0 ? (
+            ) : payments.length === 0 ? (
                 <div
                     style={{
                         background: "hsl(var(--card))",
@@ -281,18 +372,46 @@ export default function Payments() {
                         }
                     />
                 </div>
-            ) : (
-                <DataTable
-                    columns={paymentColumns}
-                    data={paginatedPayments}
-                    keyExtractor={(p) => p.id}
-                    pagination={{
-                        page: currentPage,
-                        setPage: setCurrentPage,
-                        pageSize: paymentsPerPage,
-                        total: sorted.length,
+            ) : filteredAndSorted.length === 0 ? (
+                <div
+                    style={{
+                        background: "hsl(var(--card))",
+                        borderRadius: 12,
+                        border: "1px solid hsl(var(--border))",
                     }}
-                />
+                >
+                    <EmptyState
+                        icon="🔍"
+                        title="Нічого не знайдено"
+                        desc="Спробуйте змінити фільтри"
+                    />
+                </div>
+            ) : (
+                <>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+                        <CustomSelect
+                            value={sortBy}
+                            onChange={(v) => setSortBy(v as SortOption)}
+                            options={[
+                                { value: "date-desc", label: "Дата ↓" },
+                                { value: "date-asc", label: "Дата ↑" },
+                                { value: "amount-desc", label: "Сума ↓" },
+                                { value: "amount-asc", label: "Сума ↑" },
+                            ]}
+                        />
+                    </div>
+                    <DataTable
+                        columns={paymentColumns}
+                        data={paginatedPayments}
+                        keyExtractor={(p) => p.id}
+                        pagination={{
+                            page: currentPage,
+                            setPage: setCurrentPage,
+                            pageSize: paymentsPerPage,
+                            total: filteredAndSorted.length,
+                        }}
+                    />
+                </>
             )}
 
             {/* Modal */}
