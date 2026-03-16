@@ -73,12 +73,11 @@ function LessonCard({
         lesson.status === "completed"
             ? "#10B981"
             : lesson.status === "cancelled"
-              ? "hsl(var(--coral-light))"
+              ? "#F59E0B"
               : lesson.isToday
                 ? "hsl(var(--mint-dark) / 0.85)"
                 : "hsl(var(--foreground))";
-    const color =
-        lesson.status === "cancelled" ? "hsl(var(--coral-dark))" : "#fff";
+    const color = "#fff";
 
     return (
         <div
@@ -155,7 +154,7 @@ function LessonCard({
                             opacity: 0.85,
                             marginTop: 6,
                             paddingTop: 6,
-                            borderTop: `1px solid ${lesson.status === "cancelled" ? "hsl(var(--coral))" : "rgba(255,255,255,0.25)"}`,
+                            borderTop: `1px solid rgba(255,255,255,0.25)`,
                             lineHeight: 1.4,
                             wordBreak: "break-word",
                         }}
@@ -175,14 +174,18 @@ function LessonCard({
                 }}
                 className="opacity-0 group-hover/card:opacity-100 transition-opacity"
             >
-                {lesson.status === "scheduled" && onComplete && (
+                {onComplete && (
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
                             onComplete();
                         }}
-                        style={actionBtnStyle("#10B981")}
-                        title="Готово"
+                        style={actionBtnStyle(
+                            "#10B981",
+                            lesson.status === "completed",
+                            lesson.status !== "scheduled",
+                        )}
+                        title="Виконано"
                     >
                         <svg
                             width="10"
@@ -198,13 +201,17 @@ function LessonCard({
                         </svg>
                     </button>
                 )}
-                {lesson.status === "scheduled" && onCancel && (
+                {onCancel && (
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
                             onCancel();
                         }}
-                        style={actionBtnStyle("#FB7185")}
+                        style={actionBtnStyle(
+                            "#FB7185",
+                            lesson.status === "cancelled",
+                            lesson.status !== "scheduled",
+                        )}
                         title="Скасувати"
                     >
                         <svg
@@ -227,7 +234,11 @@ function LessonCard({
                             e.stopPropagation();
                             onRemove();
                         }}
-                        style={actionBtnStyle("#64748B")}
+                        style={actionBtnStyle(
+                            "#64748B",
+                            false,
+                            lesson.status !== "scheduled",
+                        )}
                         title="Видалити"
                     >
                         <svg
@@ -250,20 +261,30 @@ function LessonCard({
     );
 }
 
-function actionBtnStyle(bg: string): React.CSSProperties {
+function actionBtnStyle(
+    bg: string,
+    active = false,
+    anyActive = false,
+): React.CSSProperties {
     return {
-        width: 22,
-        height: 22,
+        width: active ? 24 : 22,
+        height: active ? 24 : 22,
         borderRadius: "50%",
         background: bg,
-        border: "2px solid #fff",
+        border: active
+            ? "2.5px solid #fff"
+            : "2px solid rgba(255,255,255,0.45)",
         color: "#fff",
         cursor: "pointer",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+        boxShadow: active
+            ? "0 0 0 2px " + bg + ", 0 3px 10px rgba(0,0,0,0.28)"
+            : "0 2px 8px rgba(0,0,0,0.18)",
         padding: 0,
+        opacity: active ? 1 : anyActive ? 0.75 : 1,
+        transition: "all 0.15s",
     };
 }
 
